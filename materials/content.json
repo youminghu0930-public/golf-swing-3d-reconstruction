@@ -1,8 +1,8 @@
 {
   "page": {
     "title": "Golf Swing 3D Reconstruction",
-    "description": "Reconstructing golf swing motion in three dimensions.",
-    "eyebrow": "Computer vision \u00b7 Golf swing analysis",
+    "description": "Reconstructing golf swings from two synchronized views through automatic camera estimation and triangulation, without a separate calibration procedure.",
+    "eyebrow": "Computer vision · Golf swing analysis",
     "navigationLabel": "Project sections",
     "navigationToggle": "Toggle section navigation",
     "mainPage": {
@@ -15,49 +15,97 @@
       "swing": "00",
       "label": "Face-on golf swing 3D reconstruction preview",
       "fps": 60
-    }
+    },
+    "role": "My role: I studied geometric reconstruction and learned 3D lifting methods, implemented the reconstruction pipeline, and adapted camera estimation and visual verification to golf swing analysis."
   },
   "sections": [
     {
       "id": "abstract",
       "title": "Abstract",
       "paragraphs": [
-        "This project explores reconstructing golf swing motion in three dimensions from video."
+        "Conventional multi-view reconstruction depends on camera geometry, while learned 3D lifting can struggle with golf-specific motion. I developed a hybrid approach that combines learned 2D detections, golf-specific heuristics, and geometric reconstruction. From a single swing recorded in synchronized face-on and down-the-line views, it estimates camera parameters and triangulates the motion without a separate calibration procedure. The resulting camera-aware representation makes the reconstruction easier to inspect against the source videos, without collecting a new 3D training dataset."
       ]
     },
     {
       "id": "introduction",
       "title": "Introduction",
       "paragraphs": [
-        "Project background and reconstruction objectives will be described here."
+        "Two common approaches address 3D human pose reconstruction. Geometric methods triangulate corresponding points observed from different viewpoints. Classical methods such as the eight-point algorithm estimate relationships between the images; camera parameters then connect those observations to a 3D reconstruction. For practical golf analysis, obtaining the camera geometry through a separate calibration process adds substantial setup effort.",
+        "Learned 3D lifting offers another route: infer a 3D pose from a single image or a sequence of 2D poses. Its predictions reflect patterns learned from training data. Widely used datasets such as Human3.6M emphasize everyday activities, which can leave gaps for specialized sports movements.",
+        "In the golf examples I examined, lifting models captured the core body reasonably well but underestimated some spinal rotation and produced scattered, geometrically implausible wrist and hand positions. The relationship between the predicted pose and the recording camera was also difficult to inspect directly. A plausible-looking skeleton or a strong benchmark score did not explain how well the result matched the actual swing.",
+        "The central question was: Could I retain the geometric transparency of multi-view reconstruction while removing the need for a separate camera-calibration session?"
       ]
     },
     {
       "id": "method",
       "title": "Method",
-      "paragraphs": [
-        "The reconstruction pipeline and its use of video, 2D detections, and 3D results will be described here."
+      "subsections": [
+        {
+          "title": "Learn the methods and identify the practical gap",
+          "paragraphs": [
+            "I studied geometric camera estimation, triangulation, and learned 3D lifting to understand their assumptions and failure modes. The useful distinction was how each method obtained its constraints: geometric reconstruction used agreement between views, while lifting relied on learned pose patterns. I used that understanding to choose an approach suited to golf footage rather than adopting a model solely on benchmark performance."
+          ]
+        },
+        {
+          "title": "Estimate camera geometry from the swing itself",
+          "paragraphs": [
+            "I combined learned 2D joint detections with heuristics tailored to the face-on and down-the-line recording setup. The pipeline uses corresponding observations across the synchronized swing to estimate camera parameters. This moves calibration into the reconstruction process, so the user does not need a separate calibration capture."
+          ]
+        },
+        {
+          "title": "Triangulate corresponding moments",
+          "paragraphs": [
+            "Once the cameras are estimated, the pipeline triangulates corresponding joint positions from the two views. Synchronization is essential: each pair of detections must describe the same moment of the swing, both for camera estimation and for frame-by-frame reconstruction."
+          ]
+        },
+        {
+          "title": "Make the output visually verifiable",
+          "paragraphs": [
+            "I retained the estimated cameras alongside the reconstructed pose and built an interactive viewer connecting them to the source footage. Calibrated camera views, raw 2D detections, and synchronized playback make it possible to inspect where the reconstruction agrees with the observations and where a detection or camera estimate needs attention."
+          ]
+        }
       ]
     },
     {
       "id": "results",
       "title": "Results",
       "paragraphs": [
-        "Reconstruction results and visual comparisons will be presented here."
+        "The implemented workflow reconstructs golf swings from synchronized face-on and down-the-line recordings without a separate calibration session. Camera geometry and 3D motion are estimated from the same captured swing, making the geometric approach practical for this recording setup.",
+        "The examples below expose the relationship between the footage, the 2D detections, the estimated cameras, and the reconstructed motion. Switching between calibrated views and a free 3D view provides a direct way to inspect the result. The club trajectory and its speed-based coloring also make the motion easier to follow over time.",
+        "The reconstruction stage does not require training a new 3D model or collecting labeled 3D golf motion. It builds on existing 2D detections and uses the agreement between views to recover the spatial structure."
       ]
     },
     {
       "id": "discussion",
       "title": "Discussion",
-      "paragraphs": [
-        "Reconstruction behavior, observations, and future directions will be discussed here."
+      "subsections": [
+        {
+          "title": "Calibration-free describes the capture workflow",
+          "paragraphs": [
+            "The method still needs camera parameters; it estimates them automatically from the swing instead of asking the user to obtain them beforehand. This distinction preserves the geometric foundation while reducing the preparation required to use it.",
+            "The tradeoff is a synchronized two-view capture. That requirement supplies complementary observations of the same motion, reducing reliance on whether a training dataset contains a similar golf posture."
+          ]
+        },
+        {
+          "title": "Explainability supports practical verification",
+          "paragraphs": [
+            "Camera-aware reconstruction creates a traceable connection between an image observation and a 3D point. When a result looks wrong, I can inspect the underlying detection, camera estimate, and corresponding frame rather than judge the skeleton in isolation. This makes the representation useful for debugging and visual review as well as presentation."
+          ]
+        },
+        {
+          "title": "Adapt algorithms to the available data",
+          "paragraphs": [
+            "Collecting accurate 3D motion data often requires specialized equipment and substantial capture effort. Using the recorded swing itself to estimate geometry avoids an upfront 3D dataset collection and training cycle for this reconstruction method.",
+            "The engineering contribution was learning the relevant algorithms, implementing them, and modifying their use around the recording conditions and inspection needs. Combining existing methods with domain-specific constraints produced a workflow better suited to practical golf analysis."
+          ]
+        }
       ]
     },
     {
       "id": "conclusion",
       "title": "Conclusion",
       "paragraphs": [
-        "The project findings and next steps will be summarized here."
+        "I turned geometric reconstruction into a golf-specific workflow that estimates camera parameters from a synchronized two-view swing, removing the separate calibration step. The approach retains a visible link between the source footage and the reconstructed motion without requiring a new 3D training dataset. This project demonstrates my ability to learn machine-learning and computer-vision methods, implement their underlying ideas, and adapt them to the constraints of a practical use case."
       ]
     }
   ]
