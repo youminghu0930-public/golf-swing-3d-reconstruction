@@ -400,3 +400,13 @@ header[data-expanded=false] { width: 0; padding-inline: 0; border: 0; }
 .camera-distance-control span { font-size:10px;line-height:1.4; }
 .camera-distance-control input { writing-mode:vertical-lr;direction:rtl;width:28px;height:170px;margin:0;accent-color:var(--accent);cursor:pointer;touch-action:none; }
 @media(max-width:600px){.camera-distance-control{right:8px;padding:10px 5px;}.camera-distance-control input{height:130px;}}
+
+/* Scope grid placement so template sidebar rules cannot create an implicit column. */
+.video-workspace > .reconstruction-player { grid-column:1;grid-row:1; }
+.video-workspace > .video-sidebar { grid-column:2;grid-row:1;align-self:start;min-width:0; }
+.video-name-list .section-note { margin:0; }
+@media(max-width:1000px){
+  .video-workspace { grid-template-columns:minmax(0,1fr); }
+  .video-workspace > .video-sidebar { grid-column:1;grid-row:1; }
+  .video-workspace > .reconstruction-player { grid-column:1;grid-row:2; }
+}
