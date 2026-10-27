@@ -2,8 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {spawnSync} from 'node:child_process';
-const root=fileURLToPath(new URL('../',import.meta.url));
-const catalog=JSON.parse(fs.readFileSync(path.join(root,'materials/data/videos.json')));
+import {discoverVideoCatalog} from './video-catalog.mjs';
+export function prepareVideos(root=fileURLToPath(new URL('../',import.meta.url))){
+const catalog=discoverVideoCatalog(root);
+fs.writeFileSync(path.join(root,'materials/data/videos.json'),JSON.stringify(catalog,null,2)+'\n');
 for(const clip of catalog)for(const view of clip.views){
   const source=path.join(root,view.source),target=path.join(root,view.src);
   const saveTimes=()=>{
@@ -21,3 +23,7 @@ for(const clip of catalog)for(const view of clip.views){
   fs.renameSync(temporary,target);saveTimes();
   console.log(`Prepared ${view.src}`);
 }
+
+return catalog;
+}
+if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url))prepareVideos();

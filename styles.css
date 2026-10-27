@@ -385,3 +385,18 @@ header[data-expanded=false] { width: 0; padding-inline: 0; border: 0; }
 }
 .project-videos .video-sidebar h4 { margin:0 4px 18px;font-size:15px;font-weight:500;line-height:1.5; }
 .video-name-list button,.camera-view-options button { line-height:1.5; }
+
+/* Template banner: live motion behind the title, softened for legibility. */
+.banner-pose-scene { position:absolute;inset:0;pointer-events:none; }
+.banner-pose-scene h4 { display:none; }
+.banner-pose-scene canvas { display:block;width:100%;height:100%; }
+.hero .hero-subtitle { position:relative;z-index:2;max-width:620px;margin:24px 0 0;font-size:17px;line-height:1.8;color:var(--muted);pointer-events:none; }
+.hero-banner .banner-toggle { z-index:3; }
+.banner-source-decoder { position:absolute;width:1px;height:1px;opacity:.001;pointer-events:none; }
+.banner-pose-scene { touch-action:auto;user-select:none; }
+
+.video-pose { position:relative; }
+.camera-distance-control { position:absolute;right:12px;top:50%;transform:translateY(-50%);z-index:2;display:flex;flex-direction:column;align-items:center;gap:12px;padding:12px 7px;border:1px solid var(--viewer-border);border-radius:24px;background:#f4f7f0e6;color:var(--muted); }
+.camera-distance-control span { font-size:10px;line-height:1.4; }
+.camera-distance-control input { writing-mode:vertical-lr;direction:rtl;width:28px;height:170px;margin:0;accent-color:var(--accent);cursor:pointer;touch-action:none; }
+@media(max-width:600px){.camera-distance-control{right:8px;padding:10px 5px;}.camera-distance-control input{height:130px;}}

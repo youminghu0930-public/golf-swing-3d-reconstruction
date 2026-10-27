@@ -59,7 +59,7 @@ Both trajectory samples and historical clubs fade with age and retain only the m
 
 ## Videos
 
-Results includes synchronized face-on/down-the-line videos embedded as textures on calibrated camera image planes inside the 3D scene, frame stepping, a timeline, and play/pause. The selection sidebar contains names only. `materials/data/videos.json` lists the available swings, media paths, frame counts, and measured per-view fps. Clips align by frame index, using each view’s own fps for seeking; the face-on video drives playback. Update this catalog when adding/replacing video material. The static build includes catalog-listed videos and reconstruction JSON.
+Results includes synchronized face-on/down-the-line videos embedded as textures on calibrated camera image planes inside the 3D scene, frame stepping, a timeline, and play/pause. The selection sidebar contains names only. `materials/data/videos.json` lists the available swings, media paths, frame counts, and measured per-view fps. Clips align by frame index, using each view’s own fps for seeking; the face-on video drives playback. The catalog is generated from current source folders; no manual list edits are needed. The static build includes catalog-listed videos and reconstruction JSON.
 
 Server startup and builds prepare cached H.264 video previews using ffmpeg. Originals remain unchanged; generated previews are ignored by Git and regenerated in GitHub Actions.
 
@@ -92,3 +92,15 @@ Clicking an active calibrated view again returns its rotation and pan to the cal
 Raw 2D connections use thin solid geometry and joint rings scale with zoom, exposing more detail when magnified. During rapid scrubbing the skeleton responds immediately; source video decoding can briefly trail the requested pose until the latest seek completes.
 
 The video viewport reserves a fixed responsive height during loading and selection changes. Viewing cameras are constrained above the ground during orbiting and preset transitions, without changing the orbit center.
+
+The hero uses the template banner treatment with an animated 3D reconstruction behind the title and subtitle, a soft overlay, and play/pause. Copy and banner swing/range/fps are managed in `materials/content.json`. Playback pauses offscreen and honors reduced-motion preference at startup.
+
+The banner reuses the video scene in a fixed face-on view, centered and fit by video width. It autoplays the face-on video with synchronized 3D skeleton rendered in front of the video plane. It includes faded rainbow club history over the latest 30% of the sequence. It has no raw 2D overlay, ground, camera decorations, gestures, or playback controls.
+
+Set `page.banner.fps` in `materials/content.json` to control how many source frames play per second. For Swing 00 (24 fps source), `60` plays at 2.5× speed and `24` at normal speed. The 3D pose and club history remain synchronized to the video. Missing or invalid fps uses the source frame rate.
+
+The local server regenerates video discovery on catalog requests. Reloading or returning to the tab refreshes the name list without browser caching. A swing is listed only when both source videos, both detection JSON files, and its reconstruction exist. Cached previews never create entries. Builds clean dist before packaging so removed assets cannot persist in deployment. Restart an already-running older server once after this change.
+
+Video scenes show flat ground-distance rings centered on the ground projection of the fixed rotation center. Red/yellow rings match the calibrated cameras; a mint ring and circular crosshair track the viewing camera’s horizontal distance and position. These are line primitives with no volume, and optical-axis arrows are removed. Rings do not alter ground bounds, orbit center, or calibration.
+
+The video viewport has a vertical Distance slider on its right edge. It moves the viewing camera radially closer/farther around the fixed orbit center (0.4–3× baseline distance), independently of scroll/pinch lens zoom. Calibrated camera data remain unchanged.

@@ -9,7 +9,13 @@
       "label": "Return to main page",
       "url": "https://youminghu0930-public.github.io/golf-swing-analysis-poc/#projects"
     },
-    "footer": "Golf swing 3D reconstruction"
+    "footer": "Golf swing 3D reconstruction",
+    "banner": {
+      "enabled": true,
+      "swing": "00",
+      "label": "Face-on golf swing 3D reconstruction preview",
+      "fps": 60
+    }
   },
   "sections": [
     {

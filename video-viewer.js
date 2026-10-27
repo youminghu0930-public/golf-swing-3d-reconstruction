@@ -3,7 +3,7 @@ import {installFrameKeys} from './frame-keys.js';
 import {frameAtTime} from './frame-timing.js';
 import {mountPoseScene} from './snapshot-3d.js';
 const make=(tag,text,className)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(className)node.className=className;return node;};
-async function json(url){const response=await fetch(url);if(!response.ok)throw new Error(`${url}: ${response.status}`);return response.json();}
+async function json(url){const response=await fetch(url,{cache:'no-store'});if(!response.ok)throw new Error(`${url}: ${response.status}`);return response.json();}
 function playbackIcon(button, key) {
   const paths = {
     start: 'M3 4v16M12 6 5 12l7 6ZM21 6l-7 6 7 6Z',
@@ -53,15 +53,47 @@ export async function mountVideos(root){
   const frameKeys=installFrameKeys({target:document,blurTarget:window,isReady:()=>shortcutReady,step:delta=>shortcutStep?.(delta),toggle:()=>shortcutToggle?.()});
   const buttons=[];
   function stop(){playing=false;cancelAnimationFrame(raf);if(callbackVideo&&videoCallback!==undefined)callbackVideo.cancelVideoFrameCallback(videoCallback);videoCallback=undefined;media.forEach(video=>{video.pause();video.playbackRate=1;});}
-  catalog.forEach((clip,i)=>{
-    const button=make('button',clip.name);button.type='button';button.setAttribute('aria-pressed','false');button.onclick=()=>select(clip,i);list.append(button);buttons.push(button);
-  });
+  let selectedId,refreshing=false;
+  function renderList(){
+    list.replaceChildren();buttons.length=0;
+    catalog.forEach((clip,i)=>{
+      const button=make('button',clip.name);button.type='button';button.setAttribute('aria-pressed',String(clip.id===selectedId));button.onclick=()=>select(clip,i);list.append(button);buttons.push(button);
+    });
+  }
+  renderList();
+  async function refreshCatalog(){
+    if(refreshing||document.hidden)return;refreshing=true;
+    try{
+      const next=await json('materials/data/videos.json');
+      if(JSON.stringify(next)===JSON.stringify(catalog))return;
+      catalog.splice(0,catalog.length,...next);renderList();
+      if(!catalog.some(clip=>clip.id===selectedId)){
+        if(catalog.length)await select(catalog[0],0);
+        else{++version;shortcutReady=false;stop();selectionAbort?.abort();controller?.dispose();controller=undefined;content.replaceChildren(make('p','No videos available.'));playerHeading.textContent='';}
+      }
+    }catch(error){console.warn('Video list refresh failed',error);}finally{refreshing=false;}
+  }
+  window.addEventListener('focus',refreshCatalog);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshCatalog();});
   async function select(clip,index){
+    selectedId=clip.id;
     const request=++version;shortcutReady=false;frameKeys.clear();seekers.forEach(seeker=>seeker.reset());seekers=[];selectionAbort?.abort();selectionAbort=new AbortController();const signal=selectionAbort.signal;stop();controller?.dispose();controller=undefined;media.forEach(v=>{v.removeAttribute('src');v.load();});media=[];
     frame=0;buttons.forEach((b,i)=>b.setAttribute('aria-pressed',String(i===index)));
     playerHeading.textContent=clip.name;content.replaceChildren();
     const views=make('div',undefined,'video-source-decoders');
     const pose=make('article',undefined,'video-pose');
+    const distanceControl=make('label',undefined,'camera-distance-control');
+    const distanceLabel=make('span','Distance');
+    const distanceSlider=make('input');distanceSlider.type='range';distanceSlider.min='0';distanceSlider.max='1';distanceSlider.step='.001';distanceSlider.value=String(Math.log(1/.4)/Math.log(3/.4));distanceSlider.disabled=true;
+    distanceSlider.setAttribute('aria-label','Camera distance');distanceSlider.title='Camera distance';
+    const updateDistance=()=>{
+      const distance=.4*Math.pow(3/.4,Number(distanceSlider.value));
+      distanceSlider.setAttribute('aria-valuetext',`${distance.toFixed(2)}× camera distance`);
+      controller?.setDistance(distance);
+    };
+    distanceSlider.setAttribute('aria-valuetext','1.00× camera distance');
+    distanceSlider.oninput=updateDistance;
+    distanceControl.append(distanceLabel,distanceSlider);pose.append(distanceControl);
     const status=make('p','Loading reconstruction…','section-note');status.setAttribute('role','status');
     for(const view of clip.views){
       const panel=make('div');
@@ -155,6 +187,7 @@ export async function mountVideos(root){
     previous.onclick=()=>{pause();showFrame(requestedFrame-1);};next.onclick=()=>{pause();showFrame(requestedFrame+1);};slider.oninput=()=>{pause();showFrame(Number(slider.value));};
     media.forEach((video,i)=>video.addEventListener('loadedmetadata',()=>{if(request===version)video.currentTime=frame/clip.views[i].fps;}));
     shortcutStep=delta=>{player.focus({preventScroll:true});pause();showFrame(requestedFrame+delta);};shortcutToggle=()=>{player.focus({preventScroll:true});togglePlayback();};shortcutReady=true;
+    distanceSlider.disabled=false;
     for(const [button] of viewButtons)button.disabled=false;
     for(const button of Object.values(playback))button.disabled=false;slider.disabled=false;status.textContent='';showFrame(0);
   }

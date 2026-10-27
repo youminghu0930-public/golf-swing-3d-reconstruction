@@ -1,11 +1,13 @@
-import './prepare-videos.mjs';
+import {prepareVideos} from './prepare-videos.mjs';
+prepareVideos();
 import fs from 'node:fs/promises';
 const root = new URL('../', import.meta.url);
 const content = JSON.parse(await fs.readFile(new URL('materials/content.json', root), 'utf8'));
 const expected = ['abstract', 'introduction', 'method', 'results', 'discussion', 'conclusion'];
 if (JSON.stringify(content.sections.map(section => section.id)) !== JSON.stringify(expected)) throw new Error('Expected the six project sections in order.');
+await fs.rm(new URL('dist/',root),{recursive:true,force:true});
 await fs.mkdir(new URL('dist/materials/data/', root), {recursive: true});
-for (const file of ['index.html', 'styles.css', 'main.js', 'snapshot-3d.js', 'camera-flight.js', 'frame-seeker.js', 'frame-keys.js', 'frame-timing.js', 'video-viewer.js', '.nojekyll', 'materials/content.json', 'materials/data/credit.json']) {
+for (const file of ['index.html', 'styles.css', 'main.js', 'hero-banner.js', 'snapshot-3d.js', 'camera-flight.js', 'frame-seeker.js', 'frame-keys.js', 'frame-timing.js', 'video-viewer.js', '.nojekyll', 'materials/content.json', 'materials/data/credit.json']) {
   await fs.copyFile(new URL(file, root), new URL(`dist/${file}`, root));
 }
 console.log('Built static page in dist/');

@@ -64,6 +64,12 @@ async function renderPage() {
   const main = element('main');
   const hero = element('div', undefined, 'hero');
   hero.append(element('p', page.eyebrow, 'eyebrow'), element('h1', page.title));
+  if(page.banner?.enabled){
+    const banner=element('div',undefined,'hero-banner');banner.setAttribute('role','group');banner.setAttribute('aria-label',page.banner.label);
+    hero.append(banner);
+    requestAnimationFrame(()=>requestAnimationFrame(()=>import('./hero-banner.js').then(module=>module.mountBanner(banner,page.banner)).catch(error=>{console.warn('Banner unavailable',error);banner.hidden=true;})));
+  }
+  if(page.subtitle)hero.append(element('p',page.subtitle,'hero-subtitle'));
   main.append(hero);
   if (page.role) main.append(element('p', page.role, 'hero-role'));
 

@@ -5,7 +5,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const built = process.argv.includes('--dist');
-if(!built)await import('./prepare-videos.mjs');
+const prepareVideos=built?null:(await import('./prepare-videos.mjs')).prepareVideos;
+if(prepareVideos)prepareVideos();
 const root = path.resolve(fileURLToPath(new URL(built ? '../dist/' : '../', import.meta.url)));
 if (built && !fs.existsSync(path.join(root, 'index.html'))) {
   console.error('Run node scripts/build-site.mjs before previewing dist/.');
@@ -19,13 +20,14 @@ http.createServer((request, response) => {
   try {
     const url = new URL(request.url, 'http://localhost');
     const relative = decodeURIComponent(url.pathname);
+    if(!built&&relative==='/materials/data/videos.json')prepareVideos(root);
     filename = path.resolve(root, `.${relative.endsWith('/') ? `${relative}index.html` : relative}`);
     if (!filename.startsWith(`${root}${path.sep}`) && filename !== path.join(root, 'index.html')) throw new Error('Invalid path');
     if (path.relative(root, filename).split(path.sep).some(part => part.startsWith('.'))) throw new Error('Hidden path');
     if (!fs.statSync(filename).isFile()) throw new Error('Not a file');
   } catch { response.writeHead(404).end(); return; }
   const size = fs.statSync(filename).size;
-  const headers = { 'Content-Type': types[path.extname(filename).toLowerCase()] || 'application/octet-stream', 'Accept-Ranges': 'bytes', 'Cache-Control': 'no-cache' };
+  const headers = { 'Content-Type': types[path.extname(filename).toLowerCase()] || 'application/octet-stream', 'Accept-Ranges': 'bytes', 'Cache-Control': path.extname(filename)==='.json'?'no-store':'no-cache' };
   let start = 0, end = size - 1;
   if (request.headers.range) {
     const match = /^bytes=(\d*)-(\d*)$/.exec(request.headers.range);
