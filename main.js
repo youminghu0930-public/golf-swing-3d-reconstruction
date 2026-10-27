@@ -115,6 +115,10 @@ async function renderPage() {
         console.error(error); viewer.textContent = 'Unable to load 3D snapshots.';
       });
     }
+    if(content.id==='results'){
+      const videos=element('div',undefined,'project-videos');section.append(videos);
+      import('./video-viewer.js').then(module=>module.mountVideos(videos)).catch(error=>{console.error(error);videos.textContent='Unable to load videos.';});
+    }
     main.append(section);
   }
   document.querySelector('#app').replaceChildren(backdrop, navigationToggle, header, main, element('footer', page.footer));

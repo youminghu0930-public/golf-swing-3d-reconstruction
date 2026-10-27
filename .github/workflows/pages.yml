@@ -19,6 +19,10 @@ jobs:
         with:
           node-version: '22'
       - uses: actions/configure-pages@v5
+      - name: Install video encoder
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Test camera transitions
+        run: node --test tests/*.test.mjs
       - name: Build from committed data only
         run: node scripts/build-site.mjs
       - uses: actions/upload-pages-artifact@v3

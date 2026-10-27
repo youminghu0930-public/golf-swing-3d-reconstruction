@@ -1,11 +1,12 @@
 import * as THREE from './vendor/three/three.module.js';
+import {interpolateRotation,constrainCameraAboveGround} from './camera-flight.js';
 const names = ['nose','atlas','top_head','left_ear','right_ear','left_shoulder','right_shoulder','left_elbow','right_elbow','left_wrist','right_wrist','left_hip','right_hip','left_knee','right_knee','left_ankle','right_ankle','golf_club_grip','golf_club_shaft','golf_club_heel','golf_club_head'];
 const edges = [[0,1],[0,2],[0,3],[0,4],[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16],[17,19],[19,20]];
 const valid = p => Array.isArray(p) && p.length === 3 && p.every(Number.isFinite);
 async function json(url) { const response = await fetch(url); if (!response.ok) throw new Error(`${url}: ${response.status}`); return response.json(); }
 export async function mountSnapshots(root, { showCameras = false } = {}) {
   const config = await json('materials/data/snapshot.json');
-  const title = document.createElement('h3'); title.textContent = '3D snapshot highlights'; root.append(title);
+  const title = document.createElement('h3'); title.textContent = '3D snapshot highlights'; title.className='result-subheading media-heading'; root.append(title);
   const entries=Object.entries(config);
   if(!entries.length)return;
   const shell=document.createElement('div');shell.className='snapshot-shell';
@@ -13,40 +14,48 @@ export async function mountSnapshots(root, { showCameras = false } = {}) {
   const wheel=document.createElement('div');wheel.className='snapshot-wheel';shell.append(wheel);
   const dots=document.createElement('div');dots.className='snapshot-dots';dots.setAttribute('aria-label','Choose a snapshot');
   const cards=[],buttons=[];let index=0;
-  function select(next) {
-    index=(next+cards.length)%cards.length;
-    cards.forEach((card,i)=>{
-      let offset=i-index;
-      if(offset>cards.length/2)offset-=cards.length;
-      if(offset< -cards.length/2)offset+=cards.length;
-      card.classList.toggle('is-current',i===index);
-      card.inert=i!==index;card.setAttribute('aria-hidden',String(i!==index));
-      card.style.transform=`translateX(-50%) translate(${offset*48}px, ${Math.abs(offset)*12}px) scale(${i===index?1:.9})`;
-      card.style.zIndex=String(cards.length-Math.abs(offset));
-      card.style.opacity=Math.abs(offset)>1?'0':i===index?'1':'.5';
-      buttons[i].setAttribute('aria-current',String(i===index));
+  let position=0,target=0,animation;
+  function layout(){
+    const width=wheel.clientWidth,height=wheel.clientHeight;
+    const placements=cards.map((card,i)=>{
+      const angle=(i-position)*Math.PI*2/cards.length,depth=Math.cos(angle);
+      const radius=cards.length>1?Math.max(220,width*.62):0;
+      const scale=1400/(1400+(1-depth)*radius);
+      return {depth,scale,x:Math.sin(angle)*radius*scale,y:(12+card.offsetHeight/2-height*.45)*(scale-1)};
     });
+    const order=placements.map((_,i)=>i).sort((a,b)=>placements[a].depth-placements[b].depth||a-b);
+    cards.forEach((card,i)=>{const p=placements[i];card.style.transform=`translateX(-50%) translate(${p.x}px, ${p.y}px) scale(${p.scale})`;card.style.zIndex=String(order.indexOf(i)+1);});
   }
+  function select(next) {
+    target=next;index=((target%cards.length)+cards.length)%cards.length;
+    cards.forEach((card,i)=>{card.classList.toggle('is-current',i===index);card.inert=i!==index;card.setAttribute('aria-hidden',String(i!==index));buttons[i].setAttribute('aria-current',String(i===index));});
+    cancelAnimationFrame(animation);
+    const from=position,started=performance.now(),duration=Math.min(900,300+Math.max(0,Math.abs(target-from)-1)*70);
+    if(matchMedia('(prefers-reduced-motion: reduce)').matches){position=target;layout();return;}
+    function tick(now){const progress=Math.min(1,(now-started)/duration),phase=progress**.9,eased=phase*phase*(3-2*phase);position=from+(target-from)*eased;layout();if(progress<1)animation=requestAnimationFrame(tick);}
+    animation=requestAnimationFrame(tick);
+  }
+  new ResizeObserver(layout).observe(wheel);
   for (const [id, entry] of entries) {
     const card=document.createElement('article');card.className='pose-snapshot snapshot-card';
     card.setAttribute('aria-roledescription','slide');card.setAttribute('aria-label',`Swing ${id}`);
     wheel.append(card);cards.push(card);
     const button=document.createElement('button');button.type='button';button.setAttribute('aria-label',`Show swing ${id}`);button.append(document.createElement('span'));
-    const position=cards.length-1;button.onclick=()=>select(position);dots.append(button);buttons.push(button);
+    const position=cards.length-1;button.onclick=()=>{let delta=(position-((target%cards.length)+cards.length)%cards.length+cards.length)%cards.length;if(delta>cards.length/2)delta-=cards.length;select(target+delta);};dots.append(button);buttons.push(button);
   }
   for(const [direction,label,step] of [['previous','Previous snapshot',-1],['next','Next snapshot',1]]) {
     const button=document.createElement('button');button.type='button';button.className=`snapshot-arrow snapshot-${direction}`;button.setAttribute('aria-label',label);
     button.innerHTML=`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${step<0?'M15 5l-7 7 7 7':'M9 5l7 7-7 7'}"/></svg>`;
-    button.onclick=()=>select(index+step);button.hidden=entries.length<2;shell.append(button);
+    button.onclick=()=>select(target+step);button.hidden=entries.length<2;shell.append(button);
   }
   root.append(shell,dots);select(0);
   await Promise.all(entries.map(async ([id,entry],i)=>{
-    try { await mountCard(cards[i],id,entry,{showCameras}); }
+    try { await mountPoseScene(cards[i],id,entry,{showCameras}); }
     catch(error){console.error(error);cards[i].textContent=`Swing ${id}: ${error.message}`;}
   }));
 
 }
-async function mountCard(card, id, entry, { showCameras }) {
+export async function mountPoseScene(card, id, entry, { showCameras = false, autoPlay = true, cameraVideos = {}, rawDetections = {} } = {}) {
   const {reconstruction: frames, calibration} = await json(`materials/data/3d_results/${encodeURIComponent(id)}.json`);
   const configuredRange = entry.range ?? entry.ranage;
   const range = Array.isArray(configuredRange)
@@ -58,7 +67,7 @@ async function mountCard(card, id, entry, { showCameras }) {
   if (joints.some(name => !names.includes(name))) throw new Error('Unknown trail joint');
   let frame = Math.min(end, Math.max(start, entry.highlight_index ?? start));
   let yaw = 0, pitch = 0, zoom = 1, distanceScale = 1;
-  const heading = document.createElement('h4'); heading.textContent = `Swing ${id}`;
+  const heading = document.createElement('h4'); heading.textContent = `Swing ${id}`; heading.className='media-item-title';
   const canvas = document.createElement('canvas'); canvas.setAttribute('aria-label', `Rotatable 3D pose for swing ${id}`); canvas.setAttribute('role','img');
   card.append(heading,canvas);
   const points = frames.slice(start,end+1).flat().filter(valid);
@@ -86,7 +95,7 @@ async function mountCard(card, id, entry, { showCameras }) {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#f4f7f0');
   const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, autoPlay ? 2 : 1.5));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -96,7 +105,7 @@ async function mountCard(card, id, entry, { showCameras }) {
   scene.add(new THREE.HemisphereLight('#ffffff','#7d8974',2));
   const light = new THREE.DirectionalLight('#fff6df',3);
   light.position.set(-2,4,3); light.castShadow = true;
-  light.shadow.mapSize.set(2048,2048);
+  light.shadow.mapSize.set(autoPlay?2048:1024,autoPlay?2048:1024);
   const shadowExtent = Math.max(3,bound*1.8);
   Object.assign(light.shadow.camera,{left:-shadowExtent,right:shadowExtent,top:shadowExtent,bottom:-shadowExtent,near:.1,far:20});
   light.shadow.normalBias = .005; light.shadow.bias = -.00015;
@@ -203,8 +212,13 @@ async function mountCard(card, id, entry, { showCameras }) {
     mesh.receiveShadow=true;scene.add(mesh);clubHistory.push({mesh,frame:f});
   }
   const floorPosition = vector([groundX,groundY+jointRadius*unit,groundZ]);
-  const floorSize = 2*extent/unit;
-  const floor = new THREE.Mesh(new THREE.BoxGeometry(floorSize,.025,floorSize),new THREE.MeshStandardMaterial({color:'#e2eadf',roughness:.95}));
+  const cameraGroundExtent=showCameras
+    ? Math.max(0,...Object.values(calibration || {}).filter(cal=>valid(cal.t)).map(cal=>Math.max(Math.abs(cal.t[0]-groundX),Math.abs(cal.t[2]-groundZ))))
+    : 0;
+  // Include camera positions with one grid cell of edge clearance in video scenes.
+  const floorExtent=showCameras?Math.max(extent,cameraGroundExtent+Math.max(gridStep,.25*unit)):extent;
+  const floorSize = 2*floorExtent/unit;
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(floorSize,.025,floorSize),new THREE.MeshStandardMaterial({color:'#e2eadf',roughness:.95,transparent:true}));
   floor.position.copy(floorPosition);floor.position.y-=.0125;floor.receiveShadow=true;scene.add(floor);
   // Keep exact grid spacing while clipping lines to the exact ground size.
   const half = floorSize/2, step = gridStep/unit, gridPoints = [];
@@ -218,7 +232,34 @@ async function mountCard(card, id, entry, { showCameras }) {
   grid.position.copy(floorPosition);grid.position.y+=.001;scene.add(grid);
   // Notebook convention: world = R * camera + t; t is the camera center.
   // Camera models are decorative scene objects, never part of the orbit target.
+  const rawOverlays=[],cameraDecorations=[],cameraPresets=new Map();
+  let selectedView='free-view',cameraFlight,flightHandle,freeViewState;
+  let presetYaw=0,presetPitch=0;
   const cameraObjects = new THREE.Group(); scene.add(cameraObjects);
+  const mediaCleanup=[];
+  // Tripods live outside cameraObjects so their grounded feet do not feed back
+  // into the lowest-object calculation and keep lowering the ground.
+  const tripods=[];
+  const tripodMaterial=material('#46545a');
+  const footMaterial=material('#283438');
+  const tripodGeometry=new THREE.CylinderGeometry(1,1,1,12);
+  const footGeometry=new THREE.SphereGeometry(1,16,10);
+  function tripodRod(group){const mesh=new THREE.Mesh(tripodGeometry,tripodMaterial);mesh.castShadow=mesh.receiveShadow=true;group.add(mesh);return mesh;}
+  function positionRod(mesh,a,b,radius){const delta=b.clone().sub(a);mesh.position.copy(a).add(b).multiplyScalar(.5);mesh.quaternion.setFromUnitVectors(axis,delta.clone().normalize());mesh.scale.set(radius,delta.length(),radius);}
+  function updateTripods(surfaceY){
+    for(const tripod of tripods){
+      const top=tripod.position.clone();top.y-=.065;
+      const height=Math.max(.03,top.y-surfaceY);
+      const hub=top.clone();hub.y=surfaceY+height*.65;
+      positionRod(tripod.column,top,hub,.012);
+      for(let i=0;i<3;i++){
+        const angle=i*Math.PI*2/3+Math.PI/6,spread=Math.min(.22,height*.35);
+        const foot=new THREE.Vector3(top.x+Math.cos(angle)*spread,surfaceY+.009,top.z+Math.sin(angle)*spread);
+        positionRod(tripod.legs[i],hub,foot,.009);
+        tripod.feet[i].position.copy(foot);tripod.feet[i].scale.set(.018,.009,.018);
+      }
+    }
+  }
   let cameraBound = bound;
   for(const [view,cal] of Object.entries(showCameras ? calibration || {} : {})) {
     const {R,t}=cal;
@@ -232,13 +273,31 @@ async function mountCard(card, id, entry, { showCameras }) {
     const group=new THREE.Group();group.position.copy(position);
     group.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(right,up,back));
     cameraObjects.add(group);
+    const tripodGroup=new THREE.Group();tripodGroup.userData.cameraView=view;scene.add(tripodGroup);cameraDecorations.push(tripodGroup);
+    const tripod={position:position.clone(),column:tripodRod(tripodGroup),legs:[],feet:[]};
+    for(let i=0;i<3;i++){
+      tripod.legs.push(tripodRod(tripodGroup));
+      const foot=new THREE.Mesh(footGeometry,footMaterial);foot.castShadow=foot.receiveShadow=true;tripodGroup.add(foot);tripod.feet.push(foot);
+    }
+    tripods.push(tripod);
     const color=view==='face-on'?'#ef4444':'#ffc65b';
-    const marker=new THREE.Mesh(new THREE.SphereGeometry(.065,24,16),material(color));
-    marker.castShadow=marker.receiveShadow=true;group.add(marker);
+    const bodyMaterial=material(color),darkMaterial=material('#34474b');
+    const addCameraPart=(geometry,surface,position)=>{
+      const mesh=new THREE.Mesh(geometry,surface);mesh.position.set(...position);
+      mesh.castShadow=mesh.receiveShadow=true;group.add(mesh);return mesh;
+    };
+    addCameraPart(new THREE.BoxGeometry(.18,.12,.09),bodyMaterial,[0,0,.045]);
+    addCameraPart(new THREE.BoxGeometry(.055,.045,.055),darkMaterial,[.045,.078,.045]);
+    addCameraPart(new THREE.BoxGeometry(.035,.1,.1),darkMaterial,[-.09,-.005,.04]);
+    const lens=addCameraPart(new THREE.CylinderGeometry(.04,.048,.085,24),darkMaterial,[0,0,-.04]);
+    lens.rotation.x=Math.PI/2;
+    const glass=addCameraPart(new THREE.CircleGeometry(.034,24),new THREE.MeshStandardMaterial({color:'#69b8ce',metalness:.55,roughness:.16}),[0,0,-.083]);
+    glass.rotation.y=Math.PI;
     // Visualize the actual optical axis, not a look-at aimed at the golfer.
     const forward=direction([0,0,1]).normalize();
-    const distanceToBody=position.length();
-    const depth=Math.max(.6,distanceToBody*.65);
+    // Place planes near their cameras, one-third of the camera–golfer distance.
+    const bodyPoint=bodyCenters.length?vector([groundX,median(bodyCenters.map(p=>p[1])),groundZ]):new THREE.Vector3();
+    const depth=position.distanceTo(bodyPoint)/3;
     const K=cal.intrinsic;
     const sx=K?.[0]?.[0]>0?Math.min(.7,K[0][2]/K[0][0]):.35;
     const sy=K?.[1]?.[1]>0?Math.min(.7,K[1][2]/K[1][1]):.35;
@@ -248,29 +307,127 @@ async function mountCard(card, id, entry, { showCameras }) {
     const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(segments,3));
     group.add(new THREE.LineSegments(geometry,new THREE.LineBasicMaterial({color:'#78a84a',transparent:true,opacity:.8})));
     const arrow=new THREE.ArrowHelper(forward,position,depth,'#78a84a',.1,.045);
-    cameraObjects.add(arrow);
+    arrow.userData.cameraView=view;
+    group.children.forEach(part=>{part.userData.cameraView=view;});
+    cameraObjects.add(arrow);cameraDecorations.push(arrow,...group.children);
     for(const corner of corners){
       const world=corner.clone().applyQuaternion(group.quaternion).add(position);
       cameraBound=Math.max(cameraBound,world.length()+.15);
     }
-    const labelCanvas=document.createElement('canvas');labelCanvas.width=384;labelCanvas.height=80;
-    const context=labelCanvas.getContext('2d');context.fillStyle='#f4f7f0';context.fillRect(0,0,384,80);context.fillStyle=color;context.font='500 34px sans-serif';context.textAlign='center';context.fillText(view==='face-on'?'Face-on camera':'Down-the-line camera',192,52);
-    const texture=new THREE.CanvasTexture(labelCanvas);texture.colorSpace=THREE.SRGBColorSpace;
-    const caption=new THREE.Sprite(new THREE.SpriteMaterial({map:texture}));caption.position.copy(position).add(new THREE.Vector3(0,.17,0));caption.scale.set(.52,.108,1);cameraObjects.add(caption);
+    cameraPresets.set(view,{position:position.clone(),rotation:group.quaternion.clone(),K:cal.intrinsic,video:cameraVideos[view]});
+    const raw=rawDetections[view];
+    if(raw?.joints&&raw?.pred){
+      const mapping=names.map(name=>raw.joints.indexOf(name));
+      const boneMeshes=[];const rawBoneGeometry=new THREE.CylinderGeometry(1,1,1,8);const rawBoneMaterial=new THREE.MeshBasicMaterial({color:'#ffce69',toneMapped:false,transparent:true,depthWrite:false});
+      const pointGeometry=new THREE.BufferGeometry();pointGeometry.setAttribute('position',new THREE.BufferAttribute(new Float32Array(names.length*3),3));
+      pointGeometry.setAttribute('jointColor',new THREE.BufferAttribute(new Float32Array(names.length*3),3));
+      const dotMaterial=new THREE.ShaderMaterial({
+        uniforms:{ringColor:{value:new THREE.Color('#ffce69')},pointSize:{value:10*renderer.getPixelRatio()}},
+        vertexShader:'attribute vec3 jointColor; varying vec3 dotColor; uniform float pointSize; void main(){dotColor=jointColor;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);gl_PointSize=pointSize;}',
+        fragmentShader:'uniform vec3 ringColor;varying vec3 dotColor;void main(){float d=length(gl_PointCoord-vec2(.5));float aa=fwidth(d);float outer=1.0-smoothstep(.5-aa,.5,d);float ring=smoothstep(.35-aa,.35+aa,d)*outer;float dot=1.0-smoothstep(.325-aa,.325+aa,d);float alpha=max(ring,dot);if(alpha<.01)discard;gl_FragColor=vec4(mix(ringColor,dotColor,dot),alpha);\n#include <tonemapping_fragment>\n#include <colorspace_fragment>\n}',
+        transparent:true,depthWrite:false,toneMapped:false
+      });
+      for(const side of [1,-1]){
+        const overlay=new THREE.Group();overlay.position.z=-depth+side*.0005;
+        const bones=new THREE.InstancedMesh(rawBoneGeometry,rawBoneMaterial,edges.length);bones.frustumCulled=false;bones.renderOrder=1;overlay.add(bones);boneMeshes.push(bones);
+        const joints=new THREE.Points(pointGeometry,dotMaterial);joints.renderOrder=2;overlay.add(joints);
+        group.add(overlay);
+      }
+      rawOverlays.push({raw,mapping,boneMeshes,dotMaterial,pointGeometry,K,depth});
+    }
+    const video=cameraVideos[view];
+    if(video){
+      const videoTexture=new THREE.VideoTexture(video);videoTexture.colorSpace=THREE.SRGBColorSpace;
+      const screenMaterial=new THREE.MeshBasicMaterial({map:videoTexture,side:THREE.DoubleSide,toneMapped:false,transparent:true,opacity:.3,depthWrite:false});
+      const screen=new THREE.Mesh(new THREE.PlaneGeometry(1,1),screenMaterial);
+      const positionScreen=()=>{
+        const width=video.videoWidth||K[0][2]*2,height=video.videoHeight||K[1][2]*2;
+        screen.scale.set(width*depth/K[0][0],height*depth/K[1][1],1);
+        screen.position.set((width/2-K[0][2])*depth/K[0][0],-(height/2-K[1][2])*depth/K[1][1],-depth);
+        videoTexture.needsUpdate=true;updateGround();draw();
+      };
+      group.add(screen);
+      screen.visible=false;
+      const refresh=()=>{if(video.readyState>=2){screen.visible=true;positionScreen();}};
+      for(const event of ['loadeddata','resize'])video.addEventListener(event,refresh);
+      mediaCleanup.push(()=>{for(const event of ['loadeddata','resize'])video.removeEventListener(event,refresh);});
+      const redraw=()=>{if(video.readyState>=2){screen.visible=true;videoTexture.needsUpdate=true;draw();}};
+      video.addEventListener('seeked',redraw);mediaCleanup.push(()=>video.removeEventListener('seeked',redraw));
+      // Dimensions are known from intrinsics even before the video decodes.
+      const width=video.videoWidth||K[0][2]*2,height=video.videoHeight||K[1][2]*2;
+      screen.scale.set(width*depth/K[0][0],height*depth/K[1][1],1);
+      screen.position.set((width/2-K[0][2])*depth/K[0][0],-(height/2-K[1][2])*depth/K[1][1],-depth);
+      if(video.readyState>=2)screen.visible=true;
+    }
+
   }
+  // Ground height is fixed for the entire reconstruction, not the current frame
+  // or the selected playback range. Include sphere/tube thickness below points.
+  let lowestPoseY=Infinity;
+  for(const pose of frames)for(let i=0;i<pose.length;i++){
+    if(i===18||!valid(pose[i]))continue;
+    lowestPoseY=Math.min(lowestPoseY,vector(pose[i]).y-jointRadius);
+  }
+  function updateGround(){
+    cameraObjects.updateWorldMatrix(true,true);
+    const cameraBounds=new THREE.Box3().setFromObject(cameraObjects);
+    const lowestObjectY=Math.min(lowestPoseY,cameraBounds.isEmpty()?Infinity:cameraBounds.min.y);
+    const surfaceY=lowestObjectY-.002;
+    floor.position.y=surfaceY-.0125;
+    grid.position.y=surfaceY+.001;
+    updateTripods(surfaceY);
+  }
+  updateGround();
+  const enablePan=Object.keys(cameraVideos).length>0;
+  let panX=0,panY=0;
+  // Frame the pose and its motion, independently of camera/plane extents.
+  distanceScale=1;
+  if(Object.keys(cameraVideos).length){yaw=-.65;pitch=.3;}
+  let renderWidth=0,renderHeight=0;
   function draw() {
     const w=canvas.clientWidth,h=canvas.clientHeight;
     if(!w||!h)return;
-    renderer.setSize(w,h,false);
+    if(w!==renderWidth||h!==renderHeight){renderer.setSize(w,h,false);renderWidth=w;renderHeight=h;}
     camera.aspect=w/h;
     camera.zoom=zoom;
+    // Shift the projection for panning, leaving the world-space orbit center fixed.
+    if(enablePan)camera.setViewOffset(w,h,-panX,-panY,w,h);
     // Fit the complete motion using the narrower viewport angle.
+    camera.fov=45;
     const verticalHalfFov=THREE.MathUtils.degToRad(camera.fov/2);
     const halfFov=Math.min(verticalHalfFov,Math.atan(Math.tan(verticalHalfFov)*camera.aspect));
     const distance=bound*distanceScale/(Math.sin(halfFov)*.84);
     camera.far=Math.max(100,distance+bound*5);
+    const minimumCameraY=floor.position.y+.0125+.02;
+    if(selectedView==='free-view')pitch=Math.max(pitch,Math.asin(Math.max(-.999,Math.min(.999,minimumCameraY/distance))));
     camera.position.set(distance*Math.sin(yaw)*Math.cos(pitch),distance*Math.sin(pitch),distance*Math.cos(yaw)*Math.cos(pitch));
-    camera.up.set(0,1,0);camera.lookAt(0,0,0);camera.updateProjectionMatrix();
+    camera.up.set(0,1,0);camera.lookAt(0,0,0);camera.fov=45;
+    cameraDecorations.forEach(object=>{object.visible=object.userData.cameraView===selectedView?false:selectedView==='free-view'||(cameraFlight&&cameraFlight.progress<.75);});
+    const preset=cameraPresets.get(selectedView);
+    if(preset){
+      const width=preset.video?.videoWidth||preset.K[0][2]*2,height=preset.video?.videoHeight||preset.K[1][2]*2;
+      // Navigation is an offset from calibration, never a mutation of R/t/K.
+      const localOrbit=new THREE.Quaternion().setFromEuler(new THREE.Euler(presetPitch,presetYaw,0,'YXZ'));
+      const orbit=preset.rotation.clone().multiply(localOrbit).multiply(preset.rotation.clone().invert());
+      camera.position.copy(preset.position).applyQuaternion(orbit);
+      camera.quaternion.copy(orbit).multiply(preset.rotation);
+      camera.fov=THREE.MathUtils.radToDeg(2*Math.atan(Math.max(height/(2*preset.K[1][1]),width/(2*preset.K[0][0]*camera.aspect))));
+    }
+    if(cameraFlight){
+      const t=cameraFlight.progress;
+      camera.position.lerpVectors(cameraFlight.position,camera.position,t);
+      interpolateRotation(camera.quaternion,cameraFlight.rotation,camera.quaternion,t);
+      camera.fov=THREE.MathUtils.lerp(cameraFlight.fov,camera.fov,t);
+      camera.zoom=THREE.MathUtils.lerp(cameraFlight.zoom,camera.zoom,t);
+      if(enablePan)camera.setViewOffset(w,h,THREE.MathUtils.lerp(cameraFlight.offsetX,-panX,t),THREE.MathUtils.lerp(cameraFlight.offsetY,-panY,t),w,h);
+    }
+    constrainCameraAboveGround(camera,minimumCameraY);
+    camera.updateProjectionMatrix();
+    const belowGround=camera.position.y<floor.position.y+.0125;
+    floor.material.opacity=belowGround ? .3 : 1;
+    floor.material.depthWrite=!belowGround;
+    grid.material.transparent=true;grid.material.opacity=belowGround ? .3 : 1;
+    grid.material.depthWrite=!belowGround;
     const pose=frames[frame];
     for(const {a,b,mesh} of bones){
       mesh.visible=valid(pose[a])&&valid(pose[b]);if(!mesh.visible)continue;
@@ -292,31 +449,103 @@ async function mountCard(card, id, entry, { showCameras }) {
       past.mesh.visible=age>0&&age<historyWindow;
       if(past.mesh.visible)past.mesh.material.opacity=.75*(1-age/historyWindow);
     }
+    for(const overlay of rawOverlays){
+      const points=overlay.raw.pred[frame];
+      const project=index=>{
+        const p=points?.[overlay.mapping[index]];
+        if(!p||!Number.isFinite(p[0])||!Number.isFinite(p[1])||(p.length>2&&p[2]<=0)||(p[0]===0&&p[1]===0))return null;
+        return [(p[0]-overlay.K[0][2])*overlay.depth/overlay.K[0][0],-(p[1]-overlay.K[1][2])*overlay.depth/overlay.K[1][1],0];
+      };
+      let n=0;
+      for(const [a,b] of edges){
+        const from=project(a),to=project(b);if(!from||!to)continue;
+        const startPoint=new THREE.Vector3(...from),endPoint=new THREE.Vector3(...to),delta=endPoint.clone().sub(startPoint),length=delta.length();
+        if(length<1e-9)continue;
+        transform.position.copy(startPoint).add(endPoint).multiplyScalar(.5);
+        transform.quaternion.setFromUnitVectors(axis,delta.normalize());
+        const thickness=.9*overlay.depth/overlay.K[0][0];
+        transform.scale.set(thickness,length,thickness);transform.updateMatrix();
+        overlay.boneMeshes.forEach(mesh=>mesh.setMatrixAt(n,transform.matrix));n++;
+      }
+      overlay.boneMeshes.forEach(mesh=>{mesh.count=n;mesh.instanceMatrix.needsUpdate=true;});
+      overlay.dotMaterial.uniforms.pointSize.value=10*renderer.getPixelRatio()*camera.zoom;
+      let count=0;const dots=overlay.pointGeometry.attributes.position,colors=overlay.pointGeometry.attributes.jointColor;
+      names.forEach((name,i)=>{
+        if(i===18)return;const p=project(i);if(!p)return;
+        dots.setXYZ(count,...p);
+        const color=new THREE.Color(name.startsWith('left_')?'#3b82f6':name.startsWith('right_')?'#ef4444':'#ffce69');
+        colors.setXYZ(count++,color.r,color.g,color.b);
+      });
+      colors.needsUpdate=true;
+      overlay.pointGeometry.setDrawRange(0,count);dots.needsUpdate=true;overlay.pointGeometry.computeBoundingSphere();
+    }
+    canvas.dataset.frame=String(frame);
     renderer.render(scene,camera);
   }
   const pointers=new Map();
   const clampZoom=value=>Math.max(.4,Math.min(4,value));
   const pinchDistance=()=>{const [a,b]=[...pointers.values()];return Math.hypot(a.x-b.x,a.y-b.y);};
   canvas.onpointerdown=e=>{
-    if(e.pointerType==='mouse'&&e.button!==0)return;
-    pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});canvas.setPointerCapture(e.pointerId);
+    if(cameraFlight)return;
+    if(e.pointerType==='mouse'&&e.button!==0&&!(enablePan&&e.button===2))return;
+    e.preventDefault();
+    pointers.set(e.pointerId,{x:e.clientX,y:e.clientY,button:e.button});canvas.setPointerCapture(e.pointerId);
   };
   canvas.onpointermove=e=>{
     const previous=pointers.get(e.pointerId);if(!previous)return;
     const before=pointers.size===2?pinchDistance():0;
-    pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
-    if(pointers.size===2){const after=pinchDistance();if(before>0)zoom=clampZoom(zoom*after/before);}
-    else if(pointers.size===1){yaw-=(e.clientX-previous.x)*.01;pitch=Math.max(-1.4,Math.min(1.4,pitch+(e.clientY-previous.y)*.01));}
+    const dx=e.clientX-previous.x,dy=e.clientY-previous.y;
+    pointers.set(e.pointerId,{x:e.clientX,y:e.clientY,button:previous.button});
+    if(pointers.size===2){
+      const after=pinchDistance();if(before>0)zoom=clampZoom(zoom*after/before);
+      if(enablePan){panX+=dx/2;panY+=dy/2;}
+    }
+    else if(pointers.size===1){
+      if(enablePan&&previous.button===2){panX+=dx;panY+=dy;}
+      else if(selectedView==='free-view'){yaw-=dx*.01;pitch=Math.max(-1.4,Math.min(1.4,pitch+dy*.01));}
+      else{const sensitivity=.0008/Math.max(1,zoom);presetYaw-=dx*sensitivity;presetPitch=Math.max(-1.4,Math.min(1.4,presetPitch+dy*sensitivity));}
+    }
     draw();
   };
+  if(enablePan)canvas.addEventListener('contextmenu',e=>e.preventDefault());
   const release=e=>pointers.delete(e.pointerId);
   canvas.onpointerup=canvas.onpointercancel=canvas.onlostpointercapture=release;
   canvas.addEventListener('wheel',e=>{
     e.preventDefault();
+    if(cameraFlight)return;
     // Trackpad pinch arrives as a Ctrl+wheel gesture in supporting browsers.
     zoom=clampZoom(zoom*Math.exp(-e.deltaY*(e.ctrlKey ? .01 : .001)));draw();
   },{passive:false});
-  new ResizeObserver(draw).observe(canvas); draw();
+  const resizeObserver=new ResizeObserver(draw);resizeObserver.observe(canvas); draw();
+  let animationHandle,disposed=false;
+  const controller={
+    setView(value,{animate=true}={}){
+      const next=cameraPresets.has(value)?value:'free-view';
+      const recenter=next===selectedView&&next!=='free-view';
+      if(next===selectedView&&!recenter)return;
+      if(recenter&&!cameraFlight&&presetYaw===0&&presetPitch===0&&panX===0&&panY===0)return;
+      const retainedZoom=zoom;
+      cancelAnimationFrame(flightHandle);
+      const from={position:camera.position.clone(),rotation:camera.quaternion.clone(),fov:camera.fov,zoom:camera.zoom,offsetX:camera.view?.offsetX||0,offsetY:camera.view?.offsetY||0,progress:0};
+      if(selectedView==='free-view')freeViewState={yaw,pitch,zoom,panX,panY};
+      selectedView=next;presetYaw=presetPitch=0;
+      if(next==='free-view'&&freeViewState){({yaw,pitch,zoom,panX,panY}=freeViewState);}
+      else{panX=panY=0;zoom=recenter?retainedZoom:1;}
+      if(!animate||matchMedia('(prefers-reduced-motion: reduce)').matches){cameraFlight=undefined;draw();return;}
+      cameraFlight=from;const started=performance.now();
+      function fly(now){
+        if(disposed)return;
+        const t=Math.min(1,(now-started)/1000);
+        from.progress=t*t*t*(t*(t*6-15)+10);
+        if(t===1)cameraFlight=undefined;
+        draw();if(t<1)flightHandle=requestAnimationFrame(fly);
+      }
+      flightHandle=requestAnimationFrame(fly);
+    },
+    setFrame(value){frame=Math.max(start,Math.min(end,Math.floor(value)));draw();},
+    dispose(){cancelAnimationFrame(flightHandle);mediaCleanup.forEach(cleanup=>cleanup());disposed=true;cancelAnimationFrame(animationHandle);resizeObserver.disconnect();renderer.dispose();const geometries=new Set(),materials=new Set();scene.traverse(object=>{if(object.geometry)geometries.add(object.geometry);if(object.material)materials.add(object.material);});geometries.forEach(g=>g.dispose());materials.forEach(m=>{m.map?.dispose();m.dispose();});},
+  };
+  if(!autoPlay)return controller;
   // Loop the selected motion at its recorded frame rate. Only the current,
   // visible carousel card renders; hidden cards retain their playback position.
   const frameCount = end-start+1;
@@ -325,7 +554,7 @@ async function mountCard(card, id, entry, { showCameras }) {
   const visibility = new IntersectionObserver(entries=>{inViewport=entries[0].isIntersecting;});
   visibility.observe(canvas);
   function animate(now) {
-    if(!canvas.isConnected){visibility.disconnect();return;}
+    if(disposed||!canvas.isConnected){visibility.disconnect();return;}
     const playing = inViewport && !document.hidden && !card.inert;
     if(playing && previousTime !== undefined) {
       elapsedFrames = (elapsedFrames+(now-previousTime)*fps/1000)%frameCount;
@@ -333,7 +562,8 @@ async function mountCard(card, id, entry, { showCameras }) {
       if(nextFrame!==frame){frame=nextFrame;draw();}
     }
     previousTime=playing?now:undefined;
-    requestAnimationFrame(animate);
+    animationHandle=requestAnimationFrame(animate);
   }
-  requestAnimationFrame(animate);
+  animationHandle=requestAnimationFrame(animate);
+  return controller;
 }

@@ -5,13 +5,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const built = process.argv.includes('--dist');
+if(!built)await import('./prepare-videos.mjs');
 const root = path.resolve(fileURLToPath(new URL(built ? '../dist/' : '../', import.meta.url)));
 if (built && !fs.existsSync(path.join(root, 'index.html'))) {
   console.error('Run node scripts/build-site.mjs before previewing dist/.');
   process.exit(1);
 }
 const port = Number(process.argv.slice(2).find(argument => /^\d+$/.test(argument)) || 8006);
-const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.mp4': 'video/mp4', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' };
+const types = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.mp4': 'video/mp4', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' };
 http.createServer((request, response) => {
   if (!['GET', 'HEAD'].includes(request.method)) { response.writeHead(405).end(); return; }
   let filename;

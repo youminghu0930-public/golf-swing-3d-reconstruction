@@ -4,7 +4,7 @@ Static project page using the visual template from `improving-golf-swing-pose-es
 
 ## Local development
 
-Requires Node.js 22 or later; no dependencies to install.
+Requires Node.js 22 or later and ffmpeg for browser-compatible video previews. No npm dependencies to install.
 
 ```sh
 node scripts/serve.mjs
@@ -47,7 +47,7 @@ The viewer uses a 45° perspective camera with automatic framing for the viewpor
 
 Ground is centered on the median hip midpoint over the selected frame range. Its square side length is exactly twice the maximum absolute X or Z offset of any reconstruction point in that range from that center. Grid spacing remains independent of ground size.
 
-Calibrated face-on and down-the-line camera objects follow the generating notebook’s camera-to-world convention: `world = R × camera + t`. World centers are `t`, camera directions use `R`, and reprojection uses `Rᵀ × (world − t)`. Colored position spheres, green frusta, and optical-axis arrows show calibrated viewing directions; no image-plane poses are rendered. The rotation center is independent of camera markers.
+Calibrated face-on and down-the-line camera objects follow the generating notebook’s camera-to-world convention: `world = R × camera + t`. World centers are `t`, camera directions use `R`, and reprojection uses `Rᵀ × (world − t)`. Camera bodies with lenses, green frusta, and optical-axis arrows show calibrated viewing directions; no image-plane poses are rendered. The rotation center is independent of camera markers.
 
 Camera visualization is disabled in snapshots by default. The calibrated camera rendering is retained and can be enabled with `mountSnapshots(root, { showCameras: true })` for reuse when developing the video section.
 
@@ -56,3 +56,39 @@ Trail colors encode frame-to-frame 3D speed (distance × configured fps): blue �
 Historical clubs are sampled every 0.1 seconds as thin shafts (grip → heel → head), matching the club-head trajectory speed color at that moment. Their opacity fades linearly with age; only the most recent 30% of the selected sequence duration is retained. History clears at loop restart; the current club remains full thickness.
 
 Both trajectory samples and historical clubs fade with age and retain only the most recent 30% of the selected sequence duration.
+
+## Videos
+
+Results includes synchronized face-on/down-the-line videos embedded as textures on calibrated camera image planes inside the 3D scene, frame stepping, a timeline, and play/pause. The selection sidebar contains names only. `materials/data/videos.json` lists the available swings, media paths, frame counts, and measured per-view fps. Clips align by frame index, using each view’s own fps for seeking; the face-on video drives playback. Update this catalog when adding/replacing video material. The static build includes catalog-listed videos and reconstruction JSON.
+
+Server startup and builds prepare cached H.264 video previews using ffmpeg. Originals remain unchanged; generated previews are ignored by Git and regenerated in GitHub Actions.
+
+Video planes use the camera intrinsics for dimensions and principal-point offsets, and the saved camera-to-world pose for placement. Video mode opens at an oblique angle to show both planes; its orbit center remains unchanged. The source video elements remain decoder surfaces; their separate 2D panels are removed.
+
+Video image planes sit along each optical axis at one-third of the distance between camera and median golfer hip center. Their dimensions scale with depth to preserve projection alignment.
+
+Video scenes frame the pose and its motion by default; camera and image-plane extents do not affect framing. Camera name labels are omitted. Right-button drag or two-finger drag pans the projection while preserving the world-space orbit center; left-button/one-finger drag rotates, and scroll/pinch zooms. Snapshot gestures remain unchanged.
+
+In video scenes, the ground also covers all calibrated camera positions with one grid cell of clearance. This does not affect pose-focused framing or the rotation center; snapshot ground sizing is unchanged.
+
+Ground height uses the lowest rendered pose point over the entire reconstruction, with joint-radius clearance, plus the bounding boxes of camera models, viewing outlines, and video planes when present. A small gap prevents contact artifacts. Height stays fixed throughout playback, independent of the selected range. Ankle-based height remains only a scale reference for grid spacing and mesh sizes.
+
+Each calibrated camera has a shaded tripod with a center column, three spread legs, and rubber feet resting on the ground. Tripods follow ground-height updates without affecting the lowest-object calculation. Ground footprint includes clearance for the feet.
+
+Playback waits for both source videos to decode their first frame. The master video’s decoded-frame callbacks drive 3D updates; the other view corrects small timing drift through playback-rate adjustment instead of repeated seeks. Canvas buffers resize only when layout dimensions change. Video mode caps device pixel ratio at 1.5 and uses 1024px shadow maps to reduce GPU load.
+
+Video planes include raw per-frame 2D detections from `materials/data/2d_dections/`, using the template’s yellow (#ffce69) connections and joint rings, blue left-joint centers, red right-joint centers, and yellow central joints, distinct from the mint reconstruction. Face-on and Down-the-line presets use the saved calibrated camera poses; Free-view restores orbit controls. Camera bodies, tripods, and frustum guides are hidden in calibrated presets so they do not obstruct the image plane.
+
+Camera presets use the playground_v6 transition behavior: a one-second quintic-eased flight, linear position interpolation, quaternion rotation interpolation, and a smooth field-of-view/pan/zoom transition. Switching back to Free-view restores the saved orbit, pan, and zoom. Interrupted flights continue from the current rendered camera pose; reduced-motion preference switches immediately. Both endpoints retain perspective projection in this viewer.
+
+Video image planes use 0.3 opacity. The destination camera’s optical-axis arrow is hidden immediately when entering its preset, including during the transition.
+
+Video frame indices use ffprobe presentation timestamps from each encoded preview (`*.mp4.frames.json`). Frame seeking targets the interior of a frame and queues video requests until both decoders confirm presentation; the requested 2D/3D pose updates immediately during scrubbing and decoder completion cannot roll it back. UI frame labels are one-based; detection/reconstruction arrays remain zero-based. Shortcuts match the template: Space toggles play/stop, Left/Right step one frame, and holding an arrow uses native key repeat. Instructions appear below the controls.
+
+Calibrated Face-on and Down-the-line modes also allow left-drag/one-finger rotation, right-drag/two-finger pan, and scroll/pinch zoom. These are temporary navigation offsets around the unchanged rotation center; saved R, t, and K remain unchanged. Re-entering a preset restores its calibrated baseline.
+
+Clicking an active calibrated view again returns its rotation and pan to the calibrated baseline with the same smooth flight, preserving the current zoom. If already centered, the click does nothing.
+
+Raw 2D connections use thin solid geometry and joint rings scale with zoom, exposing more detail when magnified. During rapid scrubbing the skeleton responds immediately; source video decoding can briefly trail the requested pose until the latest seek completes.
+
+The video viewport reserves a fixed responsive height during loading and selection changes. Viewing cameras are constrained above the ground during orbiting and preset transitions, without changing the orbit center.
