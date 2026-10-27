@@ -1,0 +1,58 @@
+{
+  "page": {
+    "title": "Golf Swing 3D Reconstruction",
+    "description": "Reconstructing golf swing motion in three dimensions.",
+    "eyebrow": "Computer vision \u00b7 Golf swing analysis",
+    "navigationLabel": "Project sections",
+    "navigationToggle": "Toggle section navigation",
+    "mainPage": {
+      "label": "Return to main page",
+      "url": "https://youminghu0930-public.github.io/golf-swing-analysis-poc/#projects"
+    },
+    "footer": "Golf swing 3D reconstruction"
+  },
+  "sections": [
+    {
+      "id": "abstract",
+      "title": "Abstract",
+      "paragraphs": [
+        "This project explores reconstructing golf swing motion in three dimensions from video."
+      ]
+    },
+    {
+      "id": "introduction",
+      "title": "Introduction",
+      "paragraphs": [
+        "Project background and reconstruction objectives will be described here."
+      ]
+    },
+    {
+      "id": "method",
+      "title": "Method",
+      "paragraphs": [
+        "The reconstruction pipeline and its use of video, 2D detections, and 3D results will be described here."
+      ]
+    },
+    {
+      "id": "results",
+      "title": "Results",
+      "paragraphs": [
+        "Reconstruction results and visual comparisons will be presented here."
+      ]
+    },
+    {
+      "id": "discussion",
+      "title": "Discussion",
+      "paragraphs": [
+        "Reconstruction behavior, observations, and future directions will be discussed here."
+      ]
+    },
+    {
+      "id": "conclusion",
+      "title": "Conclusion",
+      "paragraphs": [
+        "The project findings and next steps will be summarized here."
+      ]
+    }
+  ]
+}

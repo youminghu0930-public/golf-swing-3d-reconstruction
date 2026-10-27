@@ -1,0 +1,12 @@
+{
+    "00": {
+        "fps":60,
+        "ranage":[0,null],
+        "joints": ["golf_club_haed"]
+    },
+    "01": {
+        "fps":60,
+        "ranage":[0,null],
+        "joints": ["golf_club_haed"]
+    }
+}
