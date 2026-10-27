@@ -27,7 +27,7 @@ export async function mountVideos(root){
   const player=make('div',undefined,'reconstruction-player comparison-player'),sidebar=make('aside',undefined,'video-sidebar');
   player.tabIndex=0;player.setAttribute('aria-label','Video reconstruction player');
   sidebar.append(make('h4','Swing videos'));
-  const list=make('div',undefined,'video-name-list');list.append(make('p','Loading video list…','section-note'));sidebar.append(list);shell.append(player,sidebar);root.append(shell);
+  const list=make('div',undefined,'video-name-list video-list');list.append(make('p','Loading video list…','section-note'));sidebar.append(list);shell.append(player,sidebar);root.append(shell);
   const placeholder=make('div',undefined,'video-pose');placeholder.setAttribute('aria-busy','true');player.append(placeholder);
   const [catalog,credits]=await Promise.all([json('materials/data/videos.json'),json('materials/data/credit.json')]);
   let controller,media=[],version=0,frame=0,playing=false,raf,videoCallback,callbackVideo,selectionAbort,seekers=[],shortcutReady=false,shortcutStep,shortcutToggle;
@@ -48,7 +48,7 @@ export async function mountVideos(root){
   function renderList(){
     list.replaceChildren();buttons.length=0;
     catalog.forEach((clip,i)=>{
-      const button=make('button',clip.name);button.type='button';button.setAttribute('aria-pressed',String(clip.id===selectedId));button.onclick=()=>select(clip,i);list.append(button);buttons.push(button);
+      const button=make('button',undefined,'video-item');const caption=make('span');caption.append(make('strong',clip.name));button.append(caption);button.type='button';button.setAttribute('aria-pressed',String(clip.id===selectedId));button.onclick=()=>select(clip,i);list.append(button);buttons.push(button);
     });
   }
   renderList();
