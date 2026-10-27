@@ -606,11 +606,12 @@ export async function mountPoseScene(card, id, entry, { showCameras = false, aut
       const resetFree=recenter&&next==='free-view';
       const defaultYaw=Object.keys(cameraVideos).length?-.65:0,defaultPitch=Object.keys(cameraVideos).length ? .3 : 0;
       const centered=resetFree?yaw===defaultYaw&&pitch===defaultPitch:presetYaw===0&&presetPitch===0;
-      if(recenter&&!cameraFlight&&centered&&panX===0&&panY===0)return;
+      if(recenter&&!cameraFlight&&centered&&panX===0&&panY===0&&(next==='free-view'||distanceScale===1))return;
       const retainedZoom=zoom;
       cancelAnimationFrame(flightHandle);
       const from={position:camera.position.clone(),rotation:camera.quaternion.clone(),fov:camera.fov,zoom:camera.zoom,offsetX:camera.view?.offsetX||0,offsetY:camera.view?.offsetY||0,progress:0};
       if(selectedView==='free-view')freeViewState={yaw,pitch,zoom,panX,panY};
+      if(next!=='free-view')distanceScale=1;
       selectedView=next;presetYaw=presetPitch=0;
       if(resetFree){yaw=defaultYaw;pitch=defaultPitch;panX=panY=0;zoom=retainedZoom;freeViewState={yaw,pitch,zoom,panX,panY};}
       else if(next==='free-view'&&freeViewState){({yaw,pitch,zoom,panX,panY}=freeViewState);}

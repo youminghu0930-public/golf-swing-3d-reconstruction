@@ -37,7 +37,7 @@ export async function mountVideos(root){
   const viewButtons=[];
   for(const [value,label] of [['face-on','Face-on view'],['down-the-line','Down-the-line view'],['free-view','Free-view']]){
     const button=make('button',label);button.type='button';button.setAttribute('aria-pressed',String(value===activeView));
-    button.onclick=()=>{activeView=value;controller?.setView(value);viewButtons.forEach(([b,v])=>b.setAttribute('aria-pressed',String(v===value)));};
+    button.onclick=()=>{activeView=value;controller?.setView(value);if(value!=='free-view'){const distance=content.querySelector('[aria-label="Camera distance"]');if(distance){distance.value=String(Math.log(1/.4)/Math.log(3/.4));distance.setAttribute('aria-valuetext','1.00× camera distance');}}viewButtons.forEach(([b,v])=>b.setAttribute('aria-pressed',String(v===value)));};
     viewOptions.append(button);viewButtons.push([button,value]);
   }
   player.replaceChildren(playerHeading,viewOptions,content);
