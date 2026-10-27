@@ -101,7 +101,9 @@ export async function mountVideos(root){
     const slider=make('input',undefined,'frame-slider');slider.type='range';slider.min=0;slider.max=clip.frames-1;slider.value=0;slider.setAttribute('aria-label','Video frame');slider.disabled=true;
     const meta=make('div',undefined,'player-meta');
     const counter=make('output',`Frame 1 / ${clip.frames}`);meta.append(counter,status);
-    content.append(views,pose,slider,meta,controls,make('p','Press Space to play or pause. Tap ← / → to step one frame; hold to repeat.','keyboard-hint'));
+    const keyboardHint=make('p',undefined,'keyboard-hint');
+    keyboardHint.append('Press Space to play or pause.',make('br'),'Tap ← / → to step one frame; hold to repeat.');
+    content.append(views,pose,slider,meta,controls,keyboardHint);
     const creditValue=credits[clip.id]??credits[clip.id.split('-')[0]];
     if(creditValue){
       try{
@@ -119,16 +121,7 @@ export async function mountVideos(root){
     const updateStatus=()=>{
       if(request!==version)return;
       if(!reconstructionReady){status.textContent=performance.now()-startedAt>20000?'Still loading the 3D reconstruction… This is taking longer than usual.':'Loading reconstruction…';return;}
-      const pending=sources.map((video,i)=>{
-        const name=clip.views[i].name==='face-on'?'Face-on':'Down-the-line';
-        if(video.error)return `${name}: failed to load`;
-        if(video.readyState>=2&&!video.seeking&&!video.paused)return '';
-        if(video.readyState>=2&&!playing)return '';
-        const buffered=video.buffered.length?video.buffered.end(video.buffered.length-1):0;
-        const percent=Number.isFinite(video.duration)&&video.duration>0?Math.round(buffered/video.duration*100):0;
-        return `${name}: ${video.readyState>=2?'buffering':'loading'}${percent?` ${percent}%`:''}`;
-      }).filter(Boolean);
-      status.textContent=pending.length?`${pending.join(' · ')}. 3D controls remain available.${performance.now()-startedAt>20000?' Video is taking longer than usual; you can keep exploring the 3D view.':''}`:'';
+      status.textContent=sources.some(video=>video.error)?'A source video could not be loaded. 3D controls remain available.':'';
     };
     const statusTimer=setInterval(updateStatus,1000);
     signal.addEventListener('abort',()=>clearInterval(statusTimer),{once:true});
