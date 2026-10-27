@@ -284,7 +284,7 @@ export async function mountPoseScene(card, id, entry, { showCameras = false, aut
       const foot=new THREE.Mesh(footGeometry,footMaterial);foot.castShadow=foot.receiveShadow=true;tripodGroup.add(foot);tripod.feet.push(foot);
     }
     tripods.push(tripod);
-    const color=view==='face-on'?'#ef4444':'#ffc65b';
+    const color=view==='face-on'?'#ef4444':'#3b82f6';
     const bodyMaterial=material(color),darkMaterial=material('#34474b');
     const addCameraPart=(geometry,surface,position)=>{
       const mesh=new THREE.Mesh(geometry,surface);mesh.position.set(...position);
@@ -322,13 +322,14 @@ export async function mountPoseScene(card, id, entry, { showCameras = false, aut
     const raw=rawDetections[view];
     if(raw?.joints&&raw?.pred){
       const mapping=names.map(name=>raw.joints.indexOf(name));
-      const boneMeshes=[];const rawBoneGeometry=new THREE.CylinderGeometry(1,1,1,8);const rawBoneMaterial=new THREE.MeshBasicMaterial({color:'#ffce69',toneMapped:false,transparent:true,depthWrite:false});
+      const overlayColor='#ffce69';
+      const boneMeshes=[];const rawBoneGeometry=new THREE.CylinderGeometry(1,1,1,8);const rawBoneMaterial=new THREE.MeshBasicMaterial({color:overlayColor,toneMapped:false,transparent:true,depthWrite:false});
       const pointGeometry=new THREE.BufferGeometry();pointGeometry.setAttribute('position',new THREE.BufferAttribute(new Float32Array(names.length*3),3));
       pointGeometry.setAttribute('jointColor',new THREE.BufferAttribute(new Float32Array(names.length*3),3));
       const dotMaterial=new THREE.ShaderMaterial({
-        uniforms:{ringColor:{value:new THREE.Color('#ffce69')},pointSize:{value:10*renderer.getPixelRatio()}},
+        uniforms:{ringColor:{value:new THREE.Color(overlayColor)},pointSize:{value:16*renderer.getPixelRatio()}},
         vertexShader:'attribute vec3 jointColor; varying vec3 dotColor; uniform float pointSize; void main(){dotColor=jointColor;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);gl_PointSize=pointSize;}',
-        fragmentShader:'uniform vec3 ringColor;varying vec3 dotColor;void main(){float d=length(gl_PointCoord-vec2(.5));float aa=fwidth(d);float outer=1.0-smoothstep(.5-aa,.5,d);float ring=smoothstep(.35-aa,.35+aa,d)*outer;float dot=1.0-smoothstep(.325-aa,.325+aa,d);float alpha=max(ring,dot);if(alpha<.01)discard;gl_FragColor=vec4(mix(ringColor,dotColor,dot),alpha);\n#include <tonemapping_fragment>\n#include <colorspace_fragment>\n}',
+        fragmentShader:'uniform vec3 ringColor;varying vec3 dotColor;void main(){float d=length(gl_PointCoord-vec2(.5));float aa=fwidth(d);float outer=1.0-smoothstep(.5-aa,.5,d);float ring=smoothstep(.35-aa,.35+aa,d)*outer;float dot=1.0-smoothstep(.29-aa,.29+aa,d);float alpha=max(ring,dot);if(alpha<.01)discard;gl_FragColor=vec4(mix(ringColor,dotColor,dot),alpha);\n#include <tonemapping_fragment>\n#include <colorspace_fragment>\n}',
         transparent:true,depthWrite:false,toneMapped:false
       });
       for(const side of [1,-1]){
@@ -337,7 +338,7 @@ export async function mountPoseScene(card, id, entry, { showCameras = false, aut
         const joints=new THREE.Points(pointGeometry,dotMaterial);joints.renderOrder=2;overlay.add(joints);
         group.add(overlay);
       }
-      rawOverlays.push({raw,mapping,boneMeshes,dotMaterial,pointGeometry,K,depth,group});
+      rawOverlays.push({raw,mapping,overlayColor,boneMeshes,dotMaterial,pointGeometry,K,depth,group});
     }
     const video=cameraVideos[view];
     if(video){
@@ -403,7 +404,7 @@ export async function mountPoseScene(card, id, entry, { showCameras = false, aut
   }
   const calibratedRings=[];
   for(const [view,preset] of cameraPresets){
-    const color=view==='face-on'?'#ef4444':'#ffc65b';
+    const color=view==='face-on'?'#ef4444':'#3b82f6';
     calibratedRings.push({position:preset.position,ring:groundRing(color),marker:groundDot(color),connection:groundConnection(color)});
   }
   const centerRing=groundDot('#63f5b4');centerRing.scale.set(.06,.06,1);
@@ -530,7 +531,8 @@ export async function mountPoseScene(card, id, entry, { showCameras = false, aut
       const verticalPixel=overlay.group.localToWorld(new THREE.Vector3(0,overlay.depth/overlay.K[1][1],-overlay.depth)).project(camera);
       const imageScale=Math.max(.0001,Math.hypot((pixel.x-origin.x)*w/2,(pixel.y-origin.y)*h/2),Math.hypot((verticalPixel.x-origin.x)*w/2,(verticalPixel.y-origin.y)*h/2));
       const detailScale=Math.sqrt(imageScale);
-      const bonePixels=Math.max(1,Math.min(4,1.8*detailScale));
+      const bonePixels=Math.max(1.4,Math.min(5.6,2.5*detailScale));
+      const jointPixels=Math.max(10,Math.min(36,16*detailScale));
       const points=overlay.raw.pred[frame];
       const project=index=>{
         const p=points?.[overlay.mapping[index]];
@@ -542,19 +544,32 @@ export async function mountPoseScene(card, id, entry, { showCameras = false, aut
         const from=project(a),to=project(b);if(!from||!to)continue;
         const startPoint=new THREE.Vector3(...from),endPoint=new THREE.Vector3(...to),delta=endPoint.clone().sub(startPoint),length=delta.length();
         if(length<1e-9)continue;
+        // Joint rings are screen-sized: trim in projected pixels so the gap
+        // stays clear even when the video plane is viewed at an angle.
+        const startCamera=overlay.group.localToWorld(startPoint.clone().setZ(-overlay.depth)).applyMatrix4(camera.matrixWorldInverse);
+        const endCamera=overlay.group.localToWorld(endPoint.clone().setZ(-overlay.depth)).applyMatrix4(camera.matrixWorldInverse);
+        const startScreen=startCamera.clone().applyMatrix4(camera.projectionMatrix);
+        const endScreen=endCamera.clone().applyMatrix4(camera.projectionMatrix);
+        const screenLength=Math.hypot((endScreen.x-startScreen.x)*w/2,(endScreen.y-startScreen.y)*h/2);
+        const inset=jointPixels/2+.5;
+        if(screenLength<=inset*2||startCamera.z>=0||endCamera.z>=0)continue;
+        const fraction=inset/screenLength;
+        const startTrim=fraction*endCamera.z/((1-fraction)*startCamera.z+fraction*endCamera.z);
+        const endTrim=fraction*startCamera.z/((1-fraction)*endCamera.z+fraction*startCamera.z);
+        startPoint.addScaledVector(delta,startTrim);endPoint.addScaledVector(delta,-endTrim);
         transform.position.copy(startPoint).add(endPoint).multiplyScalar(.5);
         transform.quaternion.setFromUnitVectors(axis,delta.normalize());
-        const thickness=Math.min(2,bonePixels/1.8/imageScale)*.9*overlay.depth/overlay.K[0][0];
-        transform.scale.set(thickness,length,thickness);transform.updateMatrix();
+        const thickness=Math.min(2.8,bonePixels/1.8/imageScale)*.9*overlay.depth/overlay.K[0][0];
+        transform.scale.set(thickness,length*(1-startTrim-endTrim),thickness);transform.updateMatrix();
         overlay.boneMeshes.forEach(mesh=>mesh.setMatrixAt(n,transform.matrix));n++;
       }
       overlay.boneMeshes.forEach(mesh=>{mesh.count=n;mesh.instanceMatrix.needsUpdate=true;});
-      overlay.dotMaterial.uniforms.pointSize.value=Math.max(6,Math.min(24,10*detailScale))*renderer.getPixelRatio();
+      overlay.dotMaterial.uniforms.pointSize.value=jointPixels*renderer.getPixelRatio();
       let count=0;const dots=overlay.pointGeometry.attributes.position,colors=overlay.pointGeometry.attributes.jointColor;
       names.forEach((name,i)=>{
         if(i===18)return;const p=project(i);if(!p)return;
         dots.setXYZ(count,...p);
-        const color=new THREE.Color(name.startsWith('left_')?'#3b82f6':name.startsWith('right_')?'#ef4444':'#ffce69');
+        const color=new THREE.Color(name.startsWith('left_')?'#3b82f6':name.startsWith('right_')?'#ef4444':overlay.overlayColor);
         colors.setXYZ(count++,color.r,color.g,color.b);
       });
       colors.needsUpdate=true;
