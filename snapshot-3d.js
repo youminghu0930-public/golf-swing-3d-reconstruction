@@ -16,6 +16,10 @@ export async function mountSnapshots(root, { showCameras = false } = {}) {
   const cards=[],buttons=[];let index=0;
   let position=0,target=0,animation;
   function layout(){
+    // Absolute carousel cards do not contribute to their parent's height.
+    // Reserve their full height plus the 12px spacing on both edges.
+    const cardHeight=Math.max(0,...cards.map(card=>card.offsetHeight));
+    if(cardHeight)wheel.style.height=`${cardHeight+24}px`;
     const width=wheel.clientWidth,height=wheel.clientHeight;
     const placements=cards.map((card,i)=>{
       const angle=(i-position)*Math.PI*2/cards.length,depth=Math.cos(angle);
@@ -35,11 +39,11 @@ export async function mountSnapshots(root, { showCameras = false } = {}) {
     function tick(now){const progress=Math.min(1,(now-started)/duration),phase=progress**.9,eased=phase*phase*(3-2*phase);position=from+(target-from)*eased;layout();if(progress<1)animation=requestAnimationFrame(tick);}
     animation=requestAnimationFrame(tick);
   }
-  new ResizeObserver(layout).observe(wheel);
+  const carouselResize=new ResizeObserver(layout);carouselResize.observe(wheel);
   for (const [id, entry] of entries) {
     const card=document.createElement('article');card.className='pose-snapshot snapshot-card';
     card.setAttribute('aria-roledescription','slide');card.setAttribute('aria-label',`Swing ${id}`);
-    wheel.append(card);cards.push(card);
+    wheel.append(card);cards.push(card);carouselResize.observe(card);
     const button=document.createElement('button');button.type='button';button.setAttribute('aria-label',`Show swing ${id}`);button.append(document.createElement('span'));
     const position=cards.length-1;button.onclick=()=>{let delta=(position-((target%cards.length)+cards.length)%cards.length+cards.length)%cards.length;if(delta>cards.length/2)delta-=cards.length;select(target+delta);};dots.append(button);buttons.push(button);
   }
