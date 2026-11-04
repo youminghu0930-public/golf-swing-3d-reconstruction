@@ -29,7 +29,7 @@ export async function mountVideos(root){
   sidebar.append(make('h4','Swing videos'));
   const list=make('div',undefined,'video-name-list video-list');list.append(make('p','Loading video list…','section-note'));sidebar.append(list);shell.append(player,sidebar);root.append(shell);
   const placeholder=make('div',undefined,'video-pose');placeholder.setAttribute('aria-busy','true');player.append(placeholder);
-  const [catalog,credits]=await Promise.all([json('materials/data/videos.json'),json('materials/data/credit.json')]);
+  const [catalog,credits]=await Promise.all([json('materials/data/videos.json'),json('materials/data/credits.json')]);
   let controller,media=[],version=0,frame=0,playing=false,raf,videoCallback,callbackVideo,selectionAbort,seekers=[],shortcutReady=false,shortcutStep,shortcutToggle;
   let activeView='free-view';
   const playerHeading=make('h4',undefined,'media-item-title'),content=make('div',undefined,'video-player-content');

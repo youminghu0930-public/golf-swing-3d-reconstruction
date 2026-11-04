@@ -20,7 +20,7 @@ Open http://127.0.0.1:8006. An optional numeric argument overrides the port.
 - `materials/data/2d_detections/<id>/`: per-view 2D detections.
 - `materials/data/3d_results/`: reconstruction JSON.
 - `materials/data/snapshot.json`: existing snapshot metadata.
-- `materials/data/credit.json`: video source credits.
+- `materials/data/credits.json`: video source credits.
 
 Existing IDs, including `00-origainal`, are preserved. The Abstract includes rotatable 3D snapshots with joint trails; videos are deferred. Section text is starter copy, not reported findings.
 
