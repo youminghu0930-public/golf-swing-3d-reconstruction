@@ -17,7 +17,7 @@ Open http://127.0.0.1:8006. An optional numeric argument overrides the port.
 - `materials/content.json`: all displayed page copy and the six ordered sections.
 - `materials/data/content.json`: existing source material, preserved separately from page copy.
 - `materials/data/videos/<id>/`: source video material.
-- `materials/data/2d_dections/<id>/`: existing 2D detections (original folder spelling preserved).
+- `materials/data/2d_detections/<id>/`: per-view 2D detections.
 - `materials/data/3d_results/`: reconstruction JSON.
 - `materials/data/snapshot.json`: existing snapshot metadata.
 - `materials/data/credit.json`: video source credits.
@@ -77,7 +77,7 @@ Each calibrated camera has a shaded tripod with a center column, three spread le
 
 Playback waits for both source videos to decode their first frame. The master video’s decoded-frame callbacks drive 3D updates; the other view corrects small timing drift through playback-rate adjustment instead of repeated seeks. Canvas buffers resize only when layout dimensions change. Video mode caps device pixel ratio at 1.5 and uses 1024px shadow maps to reduce GPU load.
 
-Video planes include raw per-frame 2D detections from `materials/data/2d_dections/`, using the template’s yellow (#ffce69) connections and joint rings, blue left-joint centers, red right-joint centers, and yellow central joints, distinct from the mint reconstruction. Face-on and Down-the-line presets use the saved calibrated camera poses; Free-view restores orbit controls. Camera bodies, tripods, and frustum guides are hidden in calibrated presets so they do not obstruct the image plane.
+Video planes include raw per-frame 2D detections from `materials/data/2d_detections/`, using the template’s yellow (#ffce69) connections and joint rings, blue left-joint centers, red right-joint centers, and yellow central joints, distinct from the mint reconstruction. Face-on and Down-the-line presets use the saved calibrated camera poses; Free-view restores orbit controls. Camera bodies, tripods, and frustum guides are hidden in calibrated presets so they do not obstruct the image plane.
 
 Camera presets use the playground_v6 transition behavior: a one-second quintic-eased flight, linear position interpolation, quaternion rotation interpolation, and a smooth field-of-view/pan/zoom transition. Switching back to Free-view restores the saved orbit, pan, and zoom. Interrupted flights continue from the current rendered camera pose; reduced-motion preference switches immediately. Both endpoints retain perspective projection in this viewer.
 

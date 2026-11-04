@@ -18,7 +18,7 @@ export function discoverVideoCatalog(root,{probe=probeVideo}={}){
     const files=fs.readdirSync(path.join(folder,id)),views=[];
     for(const name of ['face-on','down-the-line']){
       const file=files.find(file=>file.toLowerCase()===name+'.mp4');
-      if(!file||!fs.existsSync(path.join(root,`materials/data/2d_dections/${id}/${name}.json`)))break;
+      if(!file||!fs.existsSync(path.join(root,`materials/data/2d_detections/${id}/${name}.json`)))break;
       const source=`materials/data/videos/${id}/${file}`,metadata=probe(path.join(root,source));
       views.push({name,src:`materials/data/previews/${id}/${name}.mp4`,...metadata,source});
     }

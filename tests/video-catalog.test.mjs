@@ -7,10 +7,10 @@ import {discoverVideoCatalog} from '../scripts/video-catalog.mjs';
 test('source deletions remove entries even if generated previews and stale manifests remain',()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'golf-catalog-'));
   try{
-    for(const folder of ['videos/01','2d_dections/01','3d_results','previews/01'])fs.mkdirSync(path.join(root,'materials/data',folder),{recursive:true});
+    for(const folder of ['videos/01','2d_detections/01','3d_results','previews/01'])fs.mkdirSync(path.join(root,'materials/data',folder),{recursive:true});
     for(const view of ['face-on','down-the-line']){
       fs.writeFileSync(path.join(root,`materials/data/videos/01/${view}.MP4`),'source');
-      fs.writeFileSync(path.join(root,`materials/data/2d_dections/01/${view}.json`),'{}');
+      fs.writeFileSync(path.join(root,`materials/data/2d_detections/01/${view}.json`),'{}');
       fs.writeFileSync(path.join(root,`materials/data/previews/01/${view}.mp4`),'cached');
     }
     fs.writeFileSync(path.join(root,'materials/data/3d_results/01.json'),JSON.stringify({reconstruction:[[],[],[]]}));

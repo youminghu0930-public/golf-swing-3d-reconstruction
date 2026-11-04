@@ -26,7 +26,7 @@ await fs.cp(new URL('vendor/', root), new URL('dist/vendor/', root), {recursive:
 const videos=JSON.parse(await fs.readFile(new URL('materials/data/videos.json',root),'utf8'));
 await fs.copyFile(new URL('materials/data/videos.json',root),new URL('dist/materials/data/videos.json',root));
 for(const video of videos){
-  for(const file of [`materials/data/3d_results/${video.id}.json`,...video.views.flatMap(view=>[view.src,view.src+'.frames.json',`materials/data/2d_dections/${video.id}/${view.name}.json`])]){
+  for(const file of [`materials/data/3d_results/${video.id}.json`,...video.views.flatMap(view=>[view.src,view.src+'.frames.json',`materials/data/2d_detections/${video.id}/${view.name}.json`])]){
     await fs.mkdir(new URL(`dist/${file.substring(0,file.lastIndexOf('/')+1)}`,root),{recursive:true});
     await fs.copyFile(new URL(file,root),new URL(`dist/${file}`,root));
   }
