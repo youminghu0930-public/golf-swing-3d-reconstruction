@@ -101,8 +101,14 @@ export async function mountVideos(root){
     const slider=make('input',undefined,'frame-slider');slider.type='range';slider.min=0;slider.max=clip.frames-1;slider.value=0;slider.setAttribute('aria-label','Video frame');slider.disabled=true;
     const meta=make('div',undefined,'player-meta');
     const counter=make('output',`Frame 1 / ${clip.frames}`);meta.append(counter,status);
-    const keyboardHint=make('p',undefined,'keyboard-hint');
-    keyboardHint.append('Press Space to play or pause.',make('br'),'Tap ← / → to step one frame; hold to repeat.');
+    const keyboardHint=make('div',undefined,'viewer-instructions');
+    const instructionLines=[
+      'Drag with the left mouse button or one finger to rotate.',
+      'Drag with the right mouse button or two fingers to pan.',
+      'Scroll or pinch to zoom.',
+      'Press Space to play or pause. Tap ← / → to step one frame; hold to repeat.',
+    ];
+    instructionLines.forEach(line=>keyboardHint.append(make('p',line,'keyboard-hint')));
     content.append(views,pose,slider,meta,controls,keyboardHint);
     const creditValue=credits[clip.id]??credits[clip.id.split('-')[0]];
     if(creditValue){

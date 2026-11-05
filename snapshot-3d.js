@@ -52,7 +52,12 @@ export async function mountSnapshots(root, { showCameras = false } = {}) {
     button.innerHTML=`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${step<0?'M15 5l-7 7 7 7':'M9 5l7 7-7 7'}"/></svg>`;
     button.onclick=()=>select(target+step);button.hidden=entries.length<2;shell.append(button);
   }
-  root.append(shell,dots);select(0);
+  const gestureHints=document.createElement('div');
+  const gestureLines=['Drag with the left mouse button or one finger to rotate.'];
+  if(showCameras)gestureLines.push('Drag with the right mouse button or two fingers to pan.');
+  gestureLines.push('Scroll or pinch to zoom.');
+  gestureLines.forEach(line=>{const hint=document.createElement('p');hint.className='keyboard-hint';hint.textContent=line;gestureHints.append(hint);});
+  root.append(shell,dots,gestureHints);select(0);
   await Promise.all(entries.map(async ([id,entry],i)=>{
     try { await mountPoseScene(cards[i],id,entry,{showCameras}); }
     catch(error){console.error(error);cards[i].textContent=`Swing ${id}: ${error.message}`;}
