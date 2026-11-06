@@ -32,15 +32,16 @@ export async function mountVideos(root){
   const [catalog,credits]=await Promise.all([json('materials/data/videos.json'),json('materials/data/credits.json')]);
   let controller,media=[],version=0,frame=0,playing=false,raf,videoCallback,callbackVideo,selectionAbort,seekers=[],shortcutReady=false,shortcutStep,shortcutToggle;
   let activeView='free-view';
-  const playerHeading=make('h4',undefined,'media-item-title'),content=make('div',undefined,'video-player-content');
-  const viewOptions=make('div',undefined,'camera-view-options');viewOptions.setAttribute('role','group');viewOptions.setAttribute('aria-label','Camera view');
+  const content=make('div',undefined,'video-player-content'),details=make('div',undefined,'video-details');
+  shell.append(details);
+  const viewOptions=make('div',undefined,'camera-view-options');viewOptions.setAttribute('role','group');viewOptions.setAttribute('aria-label','Select POV');viewOptions.append(make('span','Select POV:','camera-view-label'));
   const viewButtons=[];
   for(const [value,label] of [['face-on','Face-on view'],['down-the-line','Down-the-line view'],['free-view','Free-view']]){
     const button=make('button',label);button.type='button';button.setAttribute('aria-pressed',String(value===activeView));
     button.onclick=()=>{activeView=value;controller?.setView(value);if(value!=='free-view'){const distance=content.querySelector('[aria-label="Camera distance"]');if(distance){distance.value=String(Math.log(1/.4)/Math.log(3/.4));distance.setAttribute('aria-valuetext','1.00× camera distance');}}viewButtons.forEach(([b,v])=>b.setAttribute('aria-pressed',String(v===value)));};
     viewOptions.append(button);viewButtons.push([button,value]);
   }
-  player.replaceChildren(playerHeading,viewOptions,content);
+  player.replaceChildren(viewOptions,content);
   const frameKeys=installFrameKeys({target:document,blurTarget:window,isReady:()=>shortcutReady,step:delta=>shortcutStep?.(delta),toggle:()=>shortcutToggle?.()});
   const buttons=[];
   function stop(){playing=false;cancelAnimationFrame(raf);if(callbackVideo&&videoCallback!==undefined)callbackVideo.cancelVideoFrameCallback(videoCallback);videoCallback=undefined;media.forEach(video=>{video.pause();video.playbackRate=1;});}
@@ -60,7 +61,7 @@ export async function mountVideos(root){
       catalog.splice(0,catalog.length,...next);renderList();
       if(!catalog.some(clip=>clip.id===selectedId)){
         if(catalog.length)await select(catalog[0],0);
-        else{++version;shortcutReady=false;stop();selectionAbort?.abort();controller?.dispose();controller=undefined;content.replaceChildren(make('p','No videos available.'));playerHeading.textContent='';}
+        else{++version;shortcutReady=false;stop();selectionAbort?.abort();controller?.dispose();controller=undefined;content.replaceChildren(make('p','No videos available.'));}
       }
     }catch(error){console.warn('Video list refresh failed',error);}finally{refreshing=false;}
   }
@@ -70,7 +71,7 @@ export async function mountVideos(root){
     selectedId=clip.id;
     const request=++version;shortcutReady=false;frameKeys.clear();seekers.forEach(seeker=>seeker.reset());seekers=[];selectionAbort?.abort();selectionAbort=new AbortController();const signal=selectionAbort.signal;stop();controller?.dispose();controller=undefined;media.forEach(v=>{v.removeAttribute('src');v.load();});media=[];
     frame=0;buttons.forEach((b,i)=>b.setAttribute('aria-pressed',String(i===index)));
-    playerHeading.textContent=clip.name;content.replaceChildren();
+    content.replaceChildren();details.replaceChildren();
     const views=make('div',undefined,'video-source-decoders');
     const pose=make('article',undefined,'video-pose');
     const distanceControl=make('label',undefined,'camera-distance-control');
@@ -109,7 +110,7 @@ export async function mountVideos(root){
       'Press Space to play or pause. Tap ← / → to step one frame; hold to repeat.',
     ];
     instructionLines.forEach(line=>keyboardHint.append(make('p',line,'keyboard-hint')));
-    content.append(views,pose,slider,meta,controls,keyboardHint);
+    content.append(views,pose,slider,meta,controls);details.append(keyboardHint);
     const creditValue=credits[clip.id]??credits[clip.id.split('-')[0]];
     if(creditValue){
       try{
@@ -117,7 +118,7 @@ export async function mountVideos(root){
         if(['http:','https:'].includes(url.protocol)){
           const credit=make('div',undefined,'video-credit'),line=make('p'),link=make('a','Original video on YouTube ↗');
           link.href=url.href;link.target='_blank';link.rel='noopener noreferrer';
-          line.append(make('span','Video source: '),link);credit.append(line);content.append(credit);
+          line.append(make('span','Video source: '),link);credit.append(line);details.append(credit);
         }
       }catch(error){console.warn('Invalid video credit URL',error);}
     }
