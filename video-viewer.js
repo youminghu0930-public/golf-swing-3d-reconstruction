@@ -1,3 +1,4 @@
+import {createViewerInfo} from './viewer-info.js';
 import {createFrameSeeker} from './frame-seeker.js';
 import {installFrameKeys} from './frame-keys.js';
 import {mountPoseScene} from './snapshot-3d.js';
@@ -22,11 +23,19 @@ function setPlaybackButton(button,playing){
   button.title=playing?'Stop':'Play';button.setAttribute('aria-label',button.title);
 }
 export async function mountVideos(root){
-  root.append(make('h3','Videos','result-subheading media-heading'));
+  const heading=make('h3','Videos','result-subheading media-heading viewer-section-heading');
+  heading.append(createViewerInfo('video-instructions','Video controls',[
+    {gesture:'Left mouse drag / one-finger drag',action:'Rotate the view.'},
+    {gesture:'Right mouse drag / two-finger drag',action:'Pan the view.'},
+    {gesture:'Scroll / pinch',action:'Zoom in or out.'},
+    {gesture:'Space',action:'Play or pause.'},
+    {gesture:'← / →',action:'Step one frame; hold to repeat.'},
+  ],'section-info'));root.append(heading);
   const shell=make('div',undefined,'video-workspace');
   const player=make('div',undefined,'reconstruction-player comparison-player'),sidebar=make('aside',undefined,'video-sidebar');
   player.tabIndex=0;player.setAttribute('aria-label','Video reconstruction player');
-  sidebar.append(make('h4','Swing videos'));
+  const sidebarHeading=make('div',undefined,'sidebar-heading'),countLabel=make('span','Loading…');
+  sidebarHeading.append(make('h3','Swing videos'),countLabel);sidebar.append(sidebarHeading);
   const list=make('div',undefined,'video-name-list video-list');list.append(make('p','Loading video list…','section-note'));sidebar.append(list);shell.append(player,sidebar);root.append(shell);
   const placeholder=make('div',undefined,'video-pose');placeholder.setAttribute('aria-busy','true');player.append(placeholder);
   const [catalog,credits]=await Promise.all([json('materials/data/videos.json'),json('materials/data/credits.json')]);
@@ -47,7 +56,7 @@ export async function mountVideos(root){
   function stop(){playing=false;cancelAnimationFrame(raf);if(callbackVideo&&videoCallback!==undefined)callbackVideo.cancelVideoFrameCallback(videoCallback);videoCallback=undefined;media.forEach(video=>{video.pause();video.playbackRate=1;});}
   let selectedId,refreshing=false;
   function renderList(){
-    list.replaceChildren();buttons.length=0;
+    list.replaceChildren();buttons.length=0;countLabel.textContent=`${catalog.length} ${catalog.length===1?'video':'videos'}`;
     catalog.forEach((clip,i)=>{
       const button=make('button',undefined,'video-item');const caption=make('span');caption.append(make('strong',clip.name));button.append(caption);button.type='button';button.setAttribute('aria-pressed',String(clip.id===selectedId));button.onclick=()=>select(clip,i);list.append(button);buttons.push(button);
     });
@@ -102,15 +111,9 @@ export async function mountVideos(root){
     const slider=make('input',undefined,'frame-slider');slider.type='range';slider.min=0;slider.max=clip.frames-1;slider.value=0;slider.setAttribute('aria-label','Video frame');slider.disabled=true;
     const meta=make('div',undefined,'player-meta');
     const counter=make('output',`Frame 1 / ${clip.frames}`);meta.append(counter,status);
-    const keyboardHint=make('div',undefined,'viewer-instructions');
-    const instructionLines=[
-      'Drag with the left mouse button or one finger to rotate.',
-      'Drag with the right mouse button or two fingers to pan.',
-      'Scroll or pinch to zoom.',
-      'Press Space to play or pause. Tap ← / → to step one frame; hold to repeat.',
-    ];
-    instructionLines.forEach(line=>keyboardHint.append(make('p',line,'keyboard-hint')));
-    content.append(views,pose,slider,meta,controls);details.append(keyboardHint);
+    const controlRow=make('div',undefined,'player-control-row');controlRow.append(meta,controls);
+    status.classList.add('player-status');
+    content.append(views,pose,slider,controlRow);
     const creditValue=credits[clip.id]??credits[clip.id.split('-')[0]];
     if(creditValue){
       try{

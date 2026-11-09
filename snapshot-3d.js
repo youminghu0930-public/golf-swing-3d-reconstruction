@@ -1,3 +1,4 @@
+import {createViewerInfo} from './viewer-info.js';
 import * as THREE from './vendor/three/three.module.js';
 import {interpolateRotation,constrainCameraAboveGround} from './camera-flight.js';
 const names = ['nose','atlas','top_head','left_ear','right_ear','left_shoulder','right_shoulder','left_elbow','right_elbow','left_wrist','right_wrist','left_hip','right_hip','left_knee','right_knee','left_ankle','right_ankle','golf_club_grip','golf_club_shaft','golf_club_heel','golf_club_head'];
@@ -6,7 +7,10 @@ const valid = p => Array.isArray(p) && p.length === 3 && p.every(Number.isFinite
 async function json(url) { const response = await fetch(url); if (!response.ok) throw new Error(`${url}: ${response.status}`); return response.json(); }
 export async function mountSnapshots(root, { showCameras = false } = {}) {
   const config = await json('materials/data/snapshot.json');
-  const title = document.createElement('h3'); title.textContent = '3D snapshot highlights'; title.className='result-subheading media-heading'; root.append(title);
+  const title = document.createElement('h3'); title.textContent = '3D snapshot highlights'; title.className='result-subheading media-heading viewer-section-heading';
+  const instructions=[{gesture:'Left mouse drag / one-finger drag',action:'Rotate the view.'},{gesture:'Scroll / pinch',action:'Zoom in or out.'}];
+  if(showCameras)instructions.splice(1,0,{gesture:'Right mouse drag / two-finger drag',action:'Pan the view.'});
+  title.append(createViewerInfo('snapshot-instructions','Snapshot controls',instructions,'section-info'));root.append(title);
   const entries=Object.entries(config);
   if(!entries.length)return;
   const shell=document.createElement('div');shell.className='snapshot-shell';
@@ -52,12 +56,7 @@ export async function mountSnapshots(root, { showCameras = false } = {}) {
     button.innerHTML=`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${step<0?'M15 5l-7 7 7 7':'M9 5l7 7-7 7'}"/></svg>`;
     button.onclick=()=>select(target+step);button.hidden=entries.length<2;shell.append(button);
   }
-  const gestureHints=document.createElement('div');
-  const gestureLines=['Drag with the left mouse button or one finger to rotate.'];
-  if(showCameras)gestureLines.push('Drag with the right mouse button or two fingers to pan.');
-  gestureLines.push('Scroll or pinch to zoom.');
-  gestureLines.forEach(line=>{const hint=document.createElement('p');hint.className='keyboard-hint';hint.textContent=line;gestureHints.append(hint);});
-  root.append(shell,dots,gestureHints);select(0);
+  root.append(shell,dots);select(0);
   await Promise.all(entries.map(async ([id,entry],i)=>{
     try { await mountPoseScene(cards[i],id,entry,{showCameras}); }
     catch(error){console.error(error);cards[i].textContent=`Swing ${id}: ${error.message}`;}
