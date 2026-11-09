@@ -495,3 +495,11 @@ header[data-expanded=false] { width: 0; padding-inline: 0; border: 0; }
 
 .video-workspace .video-name-list { min-height:120px; }
 @media(max-width:1000px){.video-workspace .video-name-list { min-height:0; }}
+
+/* Mobile playback keeps the frame count above a centered button row. */
+@media(max-width:650px){
+  .video-workspace .player-control-row { display:flex;flex-direction:column;align-items:stretch;gap:16px;padding-top:4px; }
+  .video-workspace .player-control-row .player-meta { font-size:12px;line-height:1.6; }
+  .video-workspace .player-control-row .playback-controls { justify-content:center;flex-wrap:nowrap;gap:4px;margin:0 0 12px; }
+  .video-workspace .player-control-row .playback-controls button { width:44px;height:44px;flex:0 0 44px; }
+}
