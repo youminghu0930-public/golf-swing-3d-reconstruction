@@ -1,3 +1,4 @@
+import {createVector2DOverlay} from './vector-2d-overlay.js';
 import {createViewerInfo} from './viewer-info.js';
 import * as THREE from './vendor/three/three.module.js';
 import {interpolateRotation,constrainCameraAboveGround} from './camera-flight.js';
@@ -63,7 +64,7 @@ export async function mountSnapshots(root, { showCameras = false } = {}) {
   }));
 
 }
-export async function mountPoseScene(card, id, entry, { showCameras = false, autoPlay = true, cameraVideos = {}, rawDetections = {}, bannerMode = false } = {}) {
+export async function mountPoseScene(card, id, entry, { showCameras = false, autoPlay = true, cameraVideos = {}, rawDetections = {}, vector2D = false, bannerMode = false } = {}) {
   const {reconstruction: frames, calibration} = await json(`materials/data/3d_results/${encodeURIComponent(id)}.json`);
   const configuredRange = entry.range ?? entry.ranage;
   const range = Array.isArray(configuredRange)
@@ -78,6 +79,7 @@ export async function mountPoseScene(card, id, entry, { showCameras = false, aut
   const heading = document.createElement('h4'); heading.textContent = `Swing ${id}`; heading.className='media-item-title';
   const canvas = document.createElement('canvas'); canvas.setAttribute('aria-label', `Rotatable 3D pose for swing ${id}`); canvas.setAttribute('role','img');
   card.append(heading,canvas);
+  const vectorOverlay=vector2D?createVector2DOverlay(canvas,{names,edges}):null;
   const points = frames.slice(start,end+1).flat().filter(valid);
   if (!points.length) throw new Error('No valid 3D points');
   const min = [0,1,2].map(axis => Math.min(...points.map(p=>p[axis])));
@@ -247,6 +249,7 @@ export async function mountPoseScene(card, id, entry, { showCameras = false, aut
   let presetYaw=0,presetPitch=0;
   const cameraObjects = new THREE.Group(); scene.add(cameraObjects);
   const mediaCleanup=[];
+  if(vectorOverlay)mediaCleanup.push(()=>vectorOverlay.dispose());
   // Tripods live outside cameraObjects so their grounded feet do not feed back
   // into the lowest-object calculation and keep lowering the ground.
   const tripods=[];
@@ -329,6 +332,9 @@ export async function mountPoseScene(card, id, entry, { showCameras = false, aut
     cameraPresets.set(view,{position:position.clone(),rotation:group.quaternion.clone(),K:cal.intrinsic,video:cameraVideos[view]});
     const raw=rawDetections[view];
     if(raw?.joints&&raw?.pred){
+      if(vectorOverlay){
+        rawOverlays.push({view,raw,mapping:names.map(name=>raw.joints.indexOf(name)),overlayColor:'#ffce69',K,depth,group});
+      }else{
       const mapping=names.map(name=>raw.joints.indexOf(name));
       const overlayColor='#ffce69';
       const boneMeshes=[];const rawBoneGeometry=new THREE.CylinderGeometry(1,1,1,8);const rawBoneMaterial=new THREE.MeshBasicMaterial({color:overlayColor,toneMapped:false,transparent:true,depthWrite:false});
@@ -347,6 +353,7 @@ export async function mountPoseScene(card, id, entry, { showCameras = false, aut
         group.add(overlay);
       }
       rawOverlays.push({raw,mapping,overlayColor,boneMeshes,dotMaterial,pointGeometry,K,depth,group});
+      }
     }
     const video=cameraVideos[view];
     if(video){
@@ -530,7 +537,8 @@ export async function mountPoseScene(card, id, entry, { showCameras = false, aut
       if(past.mesh.visible)past.mesh.material.opacity=.75*(1-age/historyWindow);
     }
     camera.updateMatrixWorld();
-    for(const overlay of rawOverlays){
+    if(vectorOverlay)vectorOverlay.render({camera,scene,overlays:rawOverlays,frame,w,h});
+    else for(const overlay of rawOverlays){
       // Measure actual projected image scale, including distance, zoom, FOV,
       // and orientation, instead of multiplying point size by zoom alone.
       overlay.group.updateWorldMatrix(true,false);

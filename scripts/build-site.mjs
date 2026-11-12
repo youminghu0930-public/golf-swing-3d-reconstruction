@@ -7,7 +7,7 @@ const expected = ['abstract', 'introduction', 'method', 'results', 'discussion',
 if (JSON.stringify(content.sections.map(section => section.id)) !== JSON.stringify(expected)) throw new Error('Expected the six project sections in order.');
 await fs.rm(new URL('dist/',root),{recursive:true,force:true});
 await fs.mkdir(new URL('dist/materials/data/', root), {recursive: true});
-for (const file of ['index.html', 'styles.css', 'main.js', 'hero-banner.js', 'snapshot-3d.js', 'camera-flight.js', 'frame-seeker.js', 'frame-keys.js', 'frame-timing.js', 'video-viewer.js', 'viewer-info.js', '.nojekyll', 'materials/content.json', 'materials/data/credits.json']) {
+for (const file of ['index.html', 'styles.css', 'main.js', 'hero-banner.js', 'snapshot-3d.js', 'vector-2d-overlay.js', 'camera-flight.js', 'frame-seeker.js', 'frame-keys.js', 'frame-timing.js', 'video-viewer.js', 'viewer-info.js', '.nojekyll', 'materials/content.json', 'materials/data/credits.json']) {
   await fs.copyFile(new URL(file, root), new URL(`dist/${file}`, root));
 }
 console.log('Built static page in dist/');

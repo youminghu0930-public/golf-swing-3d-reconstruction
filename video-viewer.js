@@ -138,7 +138,7 @@ export async function mountVideos(root){
     for(const video of sources)for(const event of ['progress','loadeddata','waiting','playing','error','stalled'])video.addEventListener(event,updateStatus,{signal});
     try{const rawDetections=Object.fromEntries(await Promise.all(clip.views.map(async view=>[view.name,await json(`materials/data/2d_detections/${clip.id}/${view.name}.json`)])));
       if(request!==version)return;
-      readyController=await mountPoseScene(pose,clip.id,{range:[0,clip.frames-1],fps:clip.views[0].fps,joints:['golf_club_head']},{showCameras:true,autoPlay:false,rawDetections,cameraVideos:Object.fromEntries(clip.views.map((view,i)=>[view.name,media[i]]))});}
+      readyController=await mountPoseScene(pose,clip.id,{range:[0,clip.frames-1],fps:clip.views[0].fps,joints:['golf_club_head']},{showCameras:true,autoPlay:false,vector2D:true,rawDetections,cameraVideos:Object.fromEntries(clip.views.map((view,i)=>[view.name,media[i]]))});}
     catch(error){if(request===version){console.error(error);clearInterval(statusTimer);status.textContent='The reconstruction could not be loaded. Select another swing or reload to retry.';}return;}
     if(request!==version){readyController.dispose();return;}controller=readyController;reconstructionReady=true;controller.setView(activeView,{animate:false});
     distanceSlider.disabled=false;
